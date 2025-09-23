@@ -3,3 +3,4 @@
 **__pycache__**/
 data/*.mp4
 .pytest_cache/
+.DS_store
