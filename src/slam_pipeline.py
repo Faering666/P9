@@ -18,7 +18,7 @@ def pose_to_transform(R, t):
     T[:3, 3] = t.ravel()
     return T
 
-def run_slam(frames, K, visualize=True, max_jump_distance=1.0, smooth_alpha=0.5):
+def run_slam(frames, K, visualize=True, max_jump_distance=1.0, smooth_alpha=0.5, skip_jumps=False):
     all_points = []
     detector = cv2.ORB_create(3000)
     prev_frame, prev_kp, prev_desc = None, None, None
@@ -41,15 +41,16 @@ def run_slam(frames, K, visualize=True, max_jump_distance=1.0, smooth_alpha=0.5)
                     T_global_new = T_global @ np.linalg.inv(T_rel)
 
                     # Detect jump
-                    dist = np.linalg.norm(T_global_new[:3,3] - T_global[:3,3])
-                    if dist > max_jump_distance:
-                        print(f"Jump detected at frame {i}, distance {dist:.2f}")
-                        jump_indices.append(i)
-                        # Skip triangulation for jump frames
-                        T_global = T_global_new
-                        trajectory.append(T_global.copy())
-                        prev_frame, prev_kp, prev_desc = frame, kp, desc
-                        continue
+                    if skip_jumps:
+                        dist = np.linalg.norm(T_global_new[:3,3] - T_global[:3,3])
+                        if dist > max_jump_distance:
+                            print(f"Jump detected at frame {i}, distance {dist:.2f}")
+                            jump_indices.append(i)
+                            # Skip triangulation for jump frames
+                            T_global = T_global_new
+                            trajectory.append(T_global.copy())
+                            prev_frame, prev_kp, prev_desc = frame, kp, desc
+                            continue
 
                     T_global = T_global_new
                     trajectory.append(T_global.copy())
