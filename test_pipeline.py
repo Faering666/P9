@@ -25,7 +25,7 @@ def run_drone_data_demo():
     data = load_drone_image_info()
     p = poi((0,0), [])
     for entry in data:
-        dii = drone_image_info(entry[0], entry[1], entry[2], entry[3])
+        dii = drone_image_info(entry[0], entry[1], entry[2], entry[3], entry[4])
         p.add_drone_image(dii)
     
     print(p.info())
@@ -34,5 +34,5 @@ def run_drone_data_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
-    tesrun_drone_data_demot()
+    # run_demo()
+    run_drone_data_demo()
