@@ -37,6 +37,6 @@ def run_add_drone_image_demo():
 
 
 if __name__ == "__main__":
-    # run_demo()
-    # run_drone_data_demo()
+    run_demo()
+    run_drone_data_demo()
     run_add_drone_image_demo()
