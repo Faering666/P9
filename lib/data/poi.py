@@ -1,10 +1,13 @@
-class poi
-    def __init__(self, position, drone_images):
+class poi:
+    def __init__(self, position, drone_images_info):
         self.position = position
-        self.drone_images = drone_images
+        self.drone_images_info = drone_images_info 
 
-    def add_drone_image(self, drone_image):
-        self.drone_images.append(drone_image)
+    def add_drone_image(self, drone_image_info):
+        self.drone_images_info.append(drone_image_info)
+    
+    def add_position(self, position):
+        self.position = position
 
     def info(self):
-        return (self.position, [di.info() for di in self.drone_images])
+        return (self.position, [dii.info() for dii in self.drone_images_info])
