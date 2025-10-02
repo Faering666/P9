@@ -1,0 +1,34 @@
+{
+    "drone_image_info": [
+        {
+            "position": [
+                34.0522,
+                -118.2437
+            ],
+            "angle": 120,
+            "rotation": 0,
+            "timestamp": "2024-06-01T10:00:00Z",
+            "image": "image_001.jpg"
+        },
+        {
+            "position": [
+                34.0523,
+                -118.2438
+            ],
+            "angle": 130,
+            "rotation": 15,
+            "timestamp": "2024-06-01T10:05:00Z",
+            "image": "image_002.jpg"
+        },
+        {
+            "position": [
+                1,
+                2
+            ],
+            "angle": 45,
+            "rotation": 90,
+            "timestamp": "2023-10-01T12:00:00Z",
+            "image": "image_003.png"
+        }
+    ]
+}

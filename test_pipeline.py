@@ -1,6 +1,10 @@
 import cv2
 from lib.io.video_feed import VideoFeed
 from lib.detection.img_comparer import ImageComparer
+from lib.utils.drone_image_loader import load_drone_image_info
+from lib.utils.drone_image_writer import write_drone_image_info
+from lib.data.drone_image_info import drone_image_info
+from lib.data.poi import poi
 
 def run_demo():
     feed = VideoFeed("data/video.mp4")
@@ -18,5 +22,21 @@ def run_demo():
 
     feed.release()
 
+def run_drone_data_demo():
+    data = load_drone_image_info()
+    p = poi((0,0), [])
+    for entry in data:
+        dii = drone_image_info(entry[0], entry[1], entry[2], entry[3], entry[4])
+        p.add_drone_image(dii)
+    
+    print(p.info())
+
+def run_add_drone_image_demo():
+    dii = drone_image_info((1,2), 45, 90, "2023-10-01T12:00:00Z", "image_003.png")
+    write_drone_image_info(dii)
+
+
 if __name__ == "__main__":
     run_demo()
+    run_drone_data_demo()
+    run_add_drone_image_demo()
