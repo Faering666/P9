@@ -1,0 +1,6 @@
+venv
+.venv
+*.mp4
+*.jpg
+*.jpeg
+*.mov
