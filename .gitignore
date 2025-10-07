@@ -4,3 +4,6 @@
 .DS_Store
 uv.lock
 CLAUDE.md
+
+data/*.mp4
+data/*.png
