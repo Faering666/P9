@@ -3,4 +3,5 @@ venv
 *.mp4
 *.jpg
 *.jpeg
+*.png
 *.mov
