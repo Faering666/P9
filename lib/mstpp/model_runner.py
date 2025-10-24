@@ -18,32 +18,13 @@ def _suppress_warnings():
     def _noop(*args, **kwargs): pass
     warnings.warn = _noop
 
-class MSTPPRunner:
-    """
-    Minimal inference helper for MST++ (or other methods exposed via `model_generator`).
-
-    Usage:
-        runner = MSTPPRunner(
-            method="mst_plus_plus",
-            model_path="./model_zoo/mst_plus_plus.pth",
-            save_dir="./exp/",
-            save_mat=True,
-            save_npy=True,
-            save_gray_grid=True,
-            save_color_grid=True,
-            save_each_band=True,
-        )
-        out = runner.infer_one("./picture.jpg")  # returns dict with paths & arrays
-
-        outs = runner.infer_many(["a.jpg","b.png"])  # list of dicts
-    """
-
+class ModelRunner:
     # ---------- Construction ----------
     def __init__(
         self,
         method: str = "mst_plus_plus",
         model_path: str = "./model_zoo/mst_plus_plus.pth",
-        save_dir: str = "./exp/",
+        save_dir: str = "./results/",
         device: str | None = None,
         pad_multiple: int = 16,
         # saving toggles
@@ -51,7 +32,8 @@ class MSTPPRunner:
         save_npy: bool = False,
         save_gray_grid: bool = False,
         save_color_grid: bool = False,
-        save_each_band: bool = False,
+        save_gray_band: bool = False,
+        save_color_band: bool = False,
         # visualization settings
         stretch_low: float = 1.0,
         stretch_high: float = 99.0,
@@ -59,7 +41,9 @@ class MSTPPRunner:
         verbose: bool = False,
         suppress_lib_warnings: bool = True,
         prefix_mode: str = "guid",
-        guid_length: int = 0,
+        guid_length: int = 8,
+        batch_id_mode: str = "guid",
+        batch_guid_length: int = 8,
     ):
         if suppress_lib_warnings:
             _suppress_warnings()
@@ -67,13 +51,15 @@ class MSTPPRunner:
         self.method = method
         self.model_path = model_path
         self.save_dir = save_dir
+        self._model_dir = os.path.join(self.save_dir, self.method)
         self.pad_multiple = pad_multiple
 
         self.save_mat = save_mat
         self.save_npy = save_npy
         self.save_gray_grid = save_gray_grid
         self.save_color_grid = save_color_grid
-        self.save_each_band = save_each_band
+        self.save_gray_band = save_gray_band
+        self.save_color_band = save_color_band
 
         self.stretch_low = stretch_low
         self.stretch_high = stretch_high
@@ -82,6 +68,8 @@ class MSTPPRunner:
         
         self.prefix_mode = prefix_mode
         self.guid_length = max(1, int(guid_length))
+        self.batch_id_mode = batch_id_mode
+        self.batch_guid_length = max(1, int(batch_guid_length))
 
         cudnn.benchmark = True
         if device is None:
@@ -100,6 +88,8 @@ class MSTPPRunner:
 
         # ensure base save dir
         self._ensure_dir(self.save_dir)
+        self._ensure_dir(self._model_dir)
+        self._log(f"## Results will be written to: {self._model_dir}")
 
     # ---------- Public API ----------
     def infer_one(
@@ -109,23 +99,17 @@ class MSTPPRunner:
         use_random_input: bool = False,
         random_size: tuple[int, int] = (512, 512),
         base_name: str | None = None,
-        save_subdir: str | None = None,
         return_arrays: bool = False,
         prefix: str | None = None,
+        batch_id: str | None = None,
+        batch_label: str | None = None,
     ) -> dict:
-        """
-        Run inference on a single RGB image path OR an in-memory array/tensor.
-
-        image: path or ndarray (H,W,3 in [0..1] or [0..255]) or torch.Tensor (3xHxW or 1x3xHxW)
-        use_random_input: ignore image and create a random 1x3xH x W
-        random_size: (H, W) for random input
-        base_name: override the output filename stem
-        save_subdir: optional subfolder under self.save_dir
-        return_arrays: if True, include numpy arrays in the result (cube_hwc, cube_chw)
-
-        Returns dict with keys: base, save_root, paths (dict), stats (dict), optionally arrays.
-        """
         t_all = time.time()
+        
+        
+        batch_id = batch_id or self._make_batch_id()
+        batch_dir = self._make_batch_dir(batch_id, batch_label)
+        self._ensure_dir(batch_dir)
 
         # ---- Prepare input tensor (1x3xHxW) ----
         if use_random_input:
@@ -150,7 +134,7 @@ class MSTPPRunner:
             y_pad = self.model(x_pad)  # 1 x C x H x W
         torch.cuda.synchronize() if self.device.type == "cuda" else None
         t1 = time.time()
-        self._log(f" :: Done in {(t1 - t0)*1000:.1f} ms. Output(padded)={tuple(y_pad.shape)}")
+        self._log(f" :: Done in {(t1 - t0):.2f} s. Output(padded)={tuple(y_pad.shape)}")
 
         # ---- Unpad & clamp ----
         self._log("Unpadding and clamping to [0,1]")
@@ -173,21 +157,22 @@ class MSTPPRunner:
         # ---- Id ----
         run_prefix = prefix if (prefix is not None) else self._make_prefix()
         base_tag = f"{run_prefix}_{base}" if run_prefix else base
-
-        # ---- Saving roots ----
-        save_root = self._compose_save_root(base_tag, save_subdir)
-        self._ensure_dir(save_root)
+        image_dir = os.path.join(batch_dir, base_tag)
+        self._ensure_dir(image_dir)
+        self._log(f"Batch dir: {batch_dir}")
+        self._log(f"Image subdir: {image_dir}")
+        
 
         # ---- Save numerics ----
         paths = {}
         if self.save_mat:
-            p = os.path.join(save_root, f"{base_tag}_mstpp.mat")
+            p = os.path.join(image_dir, f"{base_tag}_mstpp.mat")
             self._log(f"Saving MAT to: {p}")
             savemat(p, {"cube": cube_hwc.astype(np.float32)})
             self._log(f" :: MAT saved")
             paths["mat"] = p
         if self.save_npy:
-            p = os.path.join(save_root, f"{base_tag}_mstpp.npy")
+            p = os.path.join(image_dir, f"{base_tag}_mstpp.npy")
             self._log(f"Saving NPY to: {p}")
             np.save(p, cube_hwc.astype(np.float32))
             self._log(f" :: NPY saved")
@@ -195,21 +180,23 @@ class MSTPPRunner:
 
         # ---- Visualizations ----
         if self.save_gray_grid:
-            p = os.path.join(save_root, f"{base_tag}_bands_gray_grid.png")
+            p = os.path.join(image_dir, f"{base_tag}_bands_gray_grid.png")
             self._save_grayscale_grid(cube_hwc, p, "MST++ Output (All Bands)")
             paths["gray_grid"] = p
 
         if self.save_color_grid:
-            p = os.path.join(save_root, f"{base_tag}_bands_color_grid.png")
+            p = os.path.join(image_dir, f"{base_tag}_bands_color_grid.png")
             self._save_color_band_grid(cube_hwc, wavelengths, p, "MST++ Output (Colorized Bands)")
             paths["color_grid"] = p
 
-        if self.save_each_band:
-            gray_dir = os.path.join(save_root, f"{base_tag}_bands_gray")
-            color_dir = os.path.join(save_root, f"{base_tag}_bands_color")
+        if self.save_gray_band:
+            gray_dir = os.path.join(image_dir, f"{base_tag}_bands_gray")
             self._save_grayscale_bands(cube_hwc, gray_dir)
-            self._save_colorized_bands(cube_hwc, wavelengths, color_dir)
             paths["gray_dir"] = gray_dir
+
+        if self.save_color_band:
+            color_dir = os.path.join(image_dir, f"{base_tag}_bands_color")
+            self._save_colorized_bands(cube_hwc, wavelengths, color_dir)
             paths["color_dir"] = color_dir
 
         stats = {
@@ -225,7 +212,7 @@ class MSTPPRunner:
             "id": run_prefix,
             "base": base,
             "base_tag": base_tag,
-            "save_root": save_root,
+            "image_dir": image_dir,
             "paths": paths,
             "stats": stats
         }
@@ -241,18 +228,10 @@ class MSTPPRunner:
         *,
         glob_recursive: bool = False,
         return_arrays: bool = False,
-        save_subdir: str | None = None,
+        batch_id: str | None = None,
+        batch_label: str | None = None,
         limit: int | None = None,
     ) -> list[dict]:
-        """
-        Run inference on multiple images. Accepts:
-        - a list of explicit paths, OR
-        - a glob pattern string (e.g. './imgs/*.jpg' or './imgs/**/*.png')
-
-        glob_recursive: only used when `images` is a single glob pattern string.
-        return_arrays: include arrays in each item (mind memory).
-        limit: process only the first N images found/listed.
-        """
         # normalize list of paths
         if isinstance(images, str):
             paths = sorted(glob.glob(images, recursive=glob_recursive))
@@ -262,11 +241,21 @@ class MSTPPRunner:
         if limit is not None:
             paths = paths[:limit]
 
+        batch_id = batch_id or self._make_batch_id()
+        batch_dir = self._make_batch_dir(batch_id, batch_label)
+        self._ensure_dir(batch_dir)
+        self._log(f"Batch dir: {batch_dir}   (images={len(paths)})")
+
         outs = []
         for p in paths:
             try:
                 self._log(f"Evaluating '{p}'", True)
-                outs.append(self.infer_one(p, return_arrays=return_arrays, save_subdir=save_subdir))
+                res = self.infer_one(
+                                     p,
+                                     batch_id=batch_id,
+                                     batch_label=batch_label,
+                                     return_arrays=return_arrays)
+                outs.append(res)
                 self._log(" :: Done", True)
             except Exception as e:
                 self._log(f"[WARN] Skipping '{p}' due to error: {e}")
@@ -290,13 +279,18 @@ class MSTPPRunner:
             else:
                 raise ValueError("ndarray must be HxWx3")
             base = base_name or "array"
+
         elif torch.is_tensor(image):
             self._log("Loading tensor")
             t = image
             if t.ndim == 4 and t.shape[0] == 1 and t.shape[1] == 3:
-                return t.float().clamp(0, 255) / (255.0 if t.max() > 1.0 else 1.0), (base_name or "tensor")
+                scale = 255.0 if t.max().item() > 1.0 else 1.0
+                return t.float().clamp(0, 255) / scale, (base_name or "tensor")
+                
             if t.ndim == 3 and t.shape[0] == 3:
-                return t.unsqueeze(0).float().clamp(0, 255) / (255.0 if t.max() > 1.0 else 1.0), (base_name or "tensor")
+                scale = 255.0 if t.max().item() > 1.0 else 1.0
+                return t.unsqueeze(0).float().clamp(0, 255) / scale, (base_name or "tensor")
+                
             if t.ndim == 3 and t.shape[2] == 3:
                 arr = t.cpu().numpy()
                 base = base_name or "tensor"
@@ -476,18 +470,25 @@ class MSTPPRunner:
         return np.array([adj(r), adj(g), adj(b)], dtype=np.float32)
 
     # ---------- Misc ----------
-    def _compose_save_root(self, base: str, sub: str | None) -> str:
-        root = self.save_dir if sub is None else os.path.join(self.save_dir, sub)
-        return root
-
     def _make_prefix(self) -> str:
-        """Return a run-specific prefix based on configuration"""
         if self.prefix_mode == "guid":
             return uuid.uuid4().hex[:self.guid_length]
         if self.prefix_mode == "timestamp":
             return time.strftime("%y%m%d-%H%M%S")
-        # in case of "none"
         return ""
+
+    def _make_batch_id(self) -> str:
+        if self.batch_id_mode == "guid":
+            return uuid.uuid4().hex[:self.batch_guid_length]
+
+        return time.strftime("%y%m%d-%H%M%S")
+
+    def _make_batch_dir(self, batch_id: str, batch_label: str | None) -> str:
+        name = f"batch_{batch_id}"
+        if batch_label:
+            name = f"{name}_{batch_label}"
+
+        return os.path.join(self._model_dir, name)
 
     def _log(self, msg: str, force: bool = False):
         if self.verbose or force:
