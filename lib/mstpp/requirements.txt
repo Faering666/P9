@@ -6,3 +6,6 @@ scipy
 h5py
 hdf5storage
 tqdm
+matplotlib
+spectral
+pandas
