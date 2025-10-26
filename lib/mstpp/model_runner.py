@@ -80,6 +80,8 @@ class ModelRunner:
         self._log(f"PyTorch device: {self.device}")
         if self.device.type == "cuda":
             self._log(f"CUDA available, using: {torch.cuda.get_device_name(torch.cuda.current_device())}", True)
+        else:
+            self._log(" :: CUDA was not available")
 
         # build/load model
         self._log(f"Building model '{self.method}' and loading weights: {self.model_path}", True)
@@ -155,8 +157,15 @@ class ModelRunner:
         self._log(f"Wavelengths: {wavelengths[0]}-{wavelengths[-1]} nm (count={len(wavelengths)})")
 
         # ---- Id ----
-        run_prefix = prefix if (prefix is not None) else self._make_prefix()
-        base_tag = f"{run_prefix}_{base}" if run_prefix else base
+        run_prefix: str
+        if prefix == "":
+            run_prefix = prefix
+        elif prefix:
+            run_prefix = prefix + "_"
+        else:
+            run_prefix = self._make_prefix() + "_"
+
+        base_tag = f"{run_prefix}{base}" if run_prefix else base
         image_dir = os.path.join(batch_dir, base_tag)
         self._ensure_dir(image_dir)
         self._log(f"Batch dir: {batch_dir}")
@@ -166,13 +175,13 @@ class ModelRunner:
         # ---- Save numerics ----
         paths = {}
         if self.save_mat:
-            p = os.path.join(image_dir, f"{base_tag}_mstpp.mat")
+            p = os.path.join(image_dir, f"{base_tag}.mat")
             self._log(f"Saving MAT to: {p}")
             savemat(p, {"cube": cube_hwc.astype(np.float32)})
             self._log(f" :: MAT saved")
             paths["mat"] = p
         if self.save_npy:
-            p = os.path.join(image_dir, f"{base_tag}_mstpp.npy")
+            p = os.path.join(image_dir, f"{base_tag}.npy")
             self._log(f"Saving NPY to: {p}")
             np.save(p, cube_hwc.astype(np.float32))
             self._log(f" :: NPY saved")
@@ -230,6 +239,7 @@ class ModelRunner:
         return_arrays: bool = False,
         batch_id: str | None = None,
         batch_label: str | None = None,
+        no_prefix: bool = False,
         limit: int | None = None,
     ) -> list[dict]:
         # normalize list of paths
@@ -247,11 +257,14 @@ class ModelRunner:
         self._log(f"Batch dir: {batch_dir}   (images={len(paths)})")
 
         outs = []
+        i = 0
+        num_pics = len(paths)
         for p in paths:
             try:
-                self._log(f"Evaluating '{p}'", True)
+                self._log(f"## Evaluating [{i+1} / {num_pics}] :: '{p}'", True)
                 res = self.infer_one(
                                      p,
+                                     prefix="" if no_prefix else None,
                                      batch_id=batch_id,
                                      batch_label=batch_label,
                                      return_arrays=return_arrays)
@@ -259,6 +272,7 @@ class ModelRunner:
                 self._log(" :: Done", True)
             except Exception as e:
                 self._log(f"[WARN] Skipping '{p}' due to error: {e}")
+            i += 1
         return outs
 
     # ---------- Helpers (I/O, math, viz) ----------
@@ -486,7 +500,7 @@ class ModelRunner:
     def _make_batch_dir(self, batch_id: str, batch_label: str | None) -> str:
         name = f"batch_{batch_id}"
         if batch_label:
-            name = f"{name}_{batch_label}"
+            name = f"{batch_label}_{batch_id}"
 
         return os.path.join(self._model_dir, name)
 
