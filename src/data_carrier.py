@@ -43,11 +43,12 @@ class DataCarrier(Dataset):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         if img is None:
             raise FileNotFoundError(f"Cannot read file: {path}")
-        img = img.astype(np.float32)
+        
+        # Normalize before casting to float32
         if img.dtype == np.uint16:
-            img /= 65535.0
+            img = img.astype(np.float32) / 65535.0
         else:
-            img /= 255.0
+            img = img.astype(np.float32) / 255.0
         return img
 
     def __getitem__(self, idx):

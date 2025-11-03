@@ -28,7 +28,13 @@ class SSRNetRGBTransfer(nn.Module):
 
     def _load_pretrained(self, checkpoint_path):
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
-        pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
+        # pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
+        if 'model' in checkpoint:
+            pretrained_dict = checkpoint['model']
+        elif 'model_state_dict' in checkpoint:
+            pretrained_dict = checkpoint['model_state_dict']
+        else:
+            pretrained_dict = checkpoint
 
         ssr_state = self.ssr.state_dict()
         filtered = {}
