@@ -1,0 +1,10 @@
+opencv-python
+einops
+torchvision
+torch
+scipy
+h5py
+hdf5storage
+tqdm
+numpy
+matplotlib
