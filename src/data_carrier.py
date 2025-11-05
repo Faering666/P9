@@ -7,25 +7,24 @@ import numpy as np
 class DataCarrier(Dataset):
     """
     Dataset for paired RGB and multi-spectral (MS) images.
-    Expects each sample to have:
-        - RGB image ending with '_D.JPG'
-        - MS bands: '_MS_R.TIF', '_MS_G.TIF', '_MS_RE.TIF', '_MS_NIR.TIF'
+
     Returns:
         dict with keys 'rgb' and 'ms', each as a torch.FloatTensor [C, H, W]
     """
-    BAND_ORDER = ["_MS_R.TIF", "_MS_G.TIF", "_MS_RE.TIF", "_MS_NIR.TIF"]
+    BAND_ORDER = ["Red_Channel_", "Green_Channel_", "Red_Edge_Channel_", "Near_Infrared_Channel_"]
 
     def __init__(self, root_dir, size=256):
         self.root_dir = root_dir
         self.size = size
 
         all_files = set(os.listdir(root_dir))
-        candidate_rgb = sorted([f for f in all_files if f.endswith("_D.JPG")])
+        candidate_rgb = sorted([f for f in all_files if f.startswith("Image")])
 
         self.bases = []
         for rgb_name in candidate_rgb:
-            base = rgb_name.replace("_D.JPG", "")
-            expected_files = {base + suffix for suffix in self.BAND_ORDER}
+            # base = rgb_name.replace(".jpg", "")
+            base = rgb_name
+            expected_files = {prefix + base for prefix in self.BAND_ORDER}
             if expected_files.issubset(all_files):
                 self.bases.append(base)
             else:
@@ -55,14 +54,15 @@ class DataCarrier(Dataset):
         base = self.bases[idx]
 
         # Load RGB
-        rgb_path = os.path.join(self.root_dir, base + "_D.JPG")
+        # rgb_path = os.path.join(self.root_dir, base + ".jpg")
+        rgb_path = os.path.join(self.root_dir, base)
         rgb = self._load_and_normalize(rgb_path)
         rgb = cv2.resize(rgb, (self.size, self.size))[:, :, ::-1].copy()
 
         # Load MS bands in desired order
         bands = []
-        for suffix in self.BAND_ORDER:
-            path = os.path.join(self.root_dir, base + suffix)
+        for prefix in self.BAND_ORDER:
+            path = os.path.join(self.root_dir, prefix + base)
             band = self._load_and_normalize(path)
             bands.append(band)
 
@@ -73,3 +73,8 @@ class DataCarrier(Dataset):
         target_tensor = torch.from_numpy(target).permute(2, 0, 1).float()
 
         return {"rgb": rgb_tensor, "ms": target_tensor}
+
+if __name__ == "__main__":
+    print("Testing DataCarrier...")
+    dataset = DataCarrier(root_dir="data/", size=128)
+    print(len(dataset))
