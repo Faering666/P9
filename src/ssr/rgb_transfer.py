@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from ssr.model import Net as SSRNet
+from baseline_models.ssr import Net as SSRNet
 
 class SSRNetRGBTransfer(nn.Module):
     """

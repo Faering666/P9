@@ -1,10 +1,10 @@
-# https://github.com/ZhangJC-2k/SSR/blob/main/Model.py
-
 import torch
 import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
 from einops import rearrange
+import torch
+import torch.nn as nn
 import math
 import warnings
 from torch import einsum
@@ -264,8 +264,6 @@ class SSRU(nn.Module):
     def __init__(self, in_dim=56, out_dim=28):
         super(SSRU, self).__init__()
 
-        self.mask_adapter = nn.Conv2d(4, 28, 1, 1, 0, bias=False) 
-
         self.mask_embedding = Mask_embedding()
         self.down1 = SSRB(dim=28, dim_head=28, heads=1)
         self.downsample1 = nn.Conv2d(28, 56, 4, 2, 1, bias=False)
@@ -280,11 +278,6 @@ class SSRU(nn.Module):
         self.up1 = SSRB(dim=28, dim_head=28, heads=1)
         self.out = nn.Conv2d(28, out_dim, 3, 1, 1, bias=False)
 
-        if out_dim != 28:
-            self.residual_adapter = nn.Conv2d(28, out_dim, 1, 1, 0, bias=False)
-        else:
-            self.residual_adapter = None
-
     def forward(self, x, mask):
 
         b, c, h_inp, w_inp = x.shape
@@ -294,9 +287,7 @@ class SSRU(nn.Module):
         x_in = F.pad(x, [0, pad_w, 0, pad_h], mode='reflect')
         mask = F.pad(mask, [0, pad_w, 0, pad_h], mode='reflect')
 
-        mask_adapted = self.mask_adapter(mask) 
-        
-        x = self.mask_embedding(x_in, mask_adapted)
+        x = self.mask_embedding(x_in, mask)
         x1 = self.down1(x)
         x = self.downsample1(x1)
         x2 = self.down2(x)
@@ -308,19 +299,10 @@ class SSRU(nn.Module):
         x = self.upsample1(x)
         x = self.fusion1(torch.cat([x, x1], dim=1))
         x = self.up1(x)
-        
-        out = self.out(x)
-
-        if self.residual_adapter is not None:
-            # If out_dim (4) != internal dim (28), adapt x_in (28) -> 4 channels
-            x_in_adapted = self.residual_adapter(x_in)
-        else:
-            # If out_dim == 28 (intermediate stages), use x_in directly
-            x_in_adapted = x_in
-
-        out = out + x_in_adapted
+        out = self.out(x) + x_in
 
         return out[:, :, :h_inp, :w_inp]
+
 
 class Net(torch.nn.Module):
     def __init__(self, opt):
@@ -329,15 +311,13 @@ class Net(torch.nn.Module):
         self.stage = opt.stage
         self.nC = opt.bands
         self.size = opt.size
-
-        self.initial = nn.Conv2d(self.nC * 2, 28, 1, 1, 0)
+        self.initial = nn.Conv2d(self.nC * 2, self.nC, 1, 1, 0)
         para_estimator = []
         for i in range(opt.stage):
             para_estimator.append(Para_Estimator())
 
         for i in range(opt.stage):
-            output_dim = self.nC if i == self.stage - 1 else 28
-            netlayer.append(SSRU(in_dim=56, out_dim=output_dim))
+            netlayer.append(SSRU(in_dim=56))
             netlayer.append(ARB(28))
 
         self.rhos = nn.ModuleList(para_estimator)
@@ -388,7 +368,7 @@ class Net(torch.nn.Module):
             out.append(f)
 
         return out
-
+    
     def forward_with_f0(self, f0, input_mask=None):
         """
         Same as forward(), but uses provided f0 (already shaped [B, nC, H, W]) 

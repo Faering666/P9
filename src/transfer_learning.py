@@ -34,7 +34,7 @@ class TransferLearning:
         from ssr.rgb_transfer import SSRNetRGBTransfer
         self.model = SSRNetRGBTransfer(
             self.options,
-            load_pretrained_checkpoint="src/ssr/model_L.pkl",
+            load_pretrained_checkpoint="src/baseline_models/model_L.pkl",
             device=self.device
         )
         self.model.to(self.device)
