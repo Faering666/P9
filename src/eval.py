@@ -10,14 +10,14 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class Opt:
     def __init__(self):
-        self.stage = 1
+        self.stage = 9
         self.bands = 4
         self.size = 256
 
 opt = Opt()
 model = SSRNetRGBTransfer(opt, device=device).to(device)
 
-ckpt = torch.load("model_finetuned.pkl", map_location=device)
+ckpt = torch.load("model_final.pkl", map_location=device)
 state_dict = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
 
 model_sd = model.state_dict()
