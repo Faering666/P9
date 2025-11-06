@@ -172,8 +172,15 @@ class ModelRunner:
         self._log(f"Wavelengths: {wavelengths[0]}-{wavelengths[-1]} nm (count={len(wavelengths)})")
 
         # ---- Id ----
-        run_prefix = prefix if (prefix is not None) else self._make_prefix()
-        base_tag = f"{run_prefix}_{base}" if run_prefix else base
+        run_prefix: str
+        if prefix == "":
+            run_prefix = prefix
+        elif prefix:
+            run_prefix = prefix + "_"
+        else:
+            run_prefix = self._make_prefix() + "_"
+
+        base_tag = f"{run_prefix}{base}" if run_prefix else base
         image_dir = os.path.join(batch_dir, base_tag)
         self._ensure_dir(image_dir)
         self._log(f"Batch dir: {batch_dir}")
@@ -247,6 +254,7 @@ class ModelRunner:
         return_arrays: bool = False,
         batch_id: str | None = None,
         batch_label: str | None = None,
+        no_prefix: bool = False,
         limit: int | None = None,
     ) -> list[dict]:
         # normalize list of paths
@@ -264,11 +272,14 @@ class ModelRunner:
         self._log(f"Batch dir: {batch_dir}   (images={len(paths)})")
 
         outs = []
+        i = 0
+        num_pics = len(paths)
         for p in paths:
             try:
-                self._log(f"Evaluating '{p}'", True)
+                self._log(f"## Evaluating [{i+1} / {num_pics}] :: '{p}'", True)
                 res = self.infer_one(
                                      p,
+                                     prefix="" if no_prefix else None,
                                      batch_id=batch_id,
                                      batch_label=batch_label,
                                      return_arrays=return_arrays)
@@ -503,14 +514,9 @@ class ModelRunner:
     def _make_batch_dir(self, batch_id: str, batch_label: str | None) -> str:
         name = f"batch_{batch_id}"
         if batch_label:
-            name = f"{name}_{batch_label}"
+            name = f"{batch_label}_{batch_id}"
 
         return os.path.join(self._model_dir, name)
-    
-    def _create_dummy_mask(self, batch_size, bands, H, W, device):
-        Phi = torch.ones(batch_size, bands, H, W, device=device) 
-        PhiPhiT = torch.ones(batch_size, 1, H, W, device=device)
-        return (Phi, PhiPhiT)
 
     def _log(self, msg: str, force: bool = False):
         if self.verbose or force:

@@ -3,3 +3,10 @@ einops
 opencv-python
 matplotlib
 numpy
+torchvision
+scipy
+h5py
+hdf5storage
+tqdm
+spectral
+pandas

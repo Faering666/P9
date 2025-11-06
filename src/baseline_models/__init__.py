@@ -63,7 +63,7 @@ def forward_ssr(model: nn.Module, rgb: torch.Tensor) -> list[Any]:
     )
     
     out = model.forward_with_f0(f0, input_mask=dummy_mask)
-    print("out size: ", len(out))
+    # print("out size: ", len(out))
         
     return out[2]
 
