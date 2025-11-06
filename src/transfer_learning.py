@@ -10,9 +10,9 @@ from ssr.model import Net
 
 class Opt():
     def __init__(self):
-        self.stage = 3 # Number of stages
+        self.stage = 9 # Number of stages
         self.bands = 4  # Number of output bands
-        self.size = 128  # Resize to this
+        self.size = 256  # Resize to this
 
         self.epochs = 15 
         self.batch_size = 1
