@@ -15,3 +15,8 @@ data/*.TIF
 
 **.venv**
 **venv**
+
+model_best.pkl
+model_final.pkl
+model_finetuned.pkl
+validation_result.png
