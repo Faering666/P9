@@ -17,9 +17,6 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from scipy.io import savemat
 
-# from lib.mst_architecture import model_generator
-# from lib.ssr_architecture.Model import Net
-
 
 def _suppress_warnings():
     def _noop(*args, **kwargs): pass
@@ -190,13 +187,13 @@ class ModelRunner:
         # ---- Save numerics ----
         paths = {}
         if self.save_mat:
-            p = os.path.join(image_dir, f"{base_tag}_mstpp.mat")
+            p = os.path.join(image_dir, f"{base_tag}.mat")
             self._log(f"Saving MAT to: {p}")
             savemat(p, {"cube": cube_hwc.astype(np.float32)})
             self._log(f" :: MAT saved")
             paths["mat"] = p
         if self.save_npy:
-            p = os.path.join(image_dir, f"{base_tag}_mstpp.npy")
+            p = os.path.join(image_dir, f"{base_tag}.npy")
             self._log(f"Saving NPY to: {p}")
             np.save(p, cube_hwc.astype(np.float32))
             self._log(f" :: NPY saved")
@@ -205,12 +202,12 @@ class ModelRunner:
         # ---- Visualizations ----
         if self.save_gray_grid:
             p = os.path.join(image_dir, f"{base_tag}_bands_gray_grid.png")
-            self._save_grayscale_grid(cube_hwc, p, "MST++ Output (All Bands)")
+            self._save_grayscale_grid(cube_hwc, p, f"{self.method} Output (All Bands)")
             paths["gray_grid"] = p
 
         if self.save_color_grid:
             p = os.path.join(image_dir, f"{base_tag}_bands_color_grid.png")
-            self._save_color_band_grid(cube_hwc, wavelengths, p, "MST++ Output (Colorized Bands)")
+            self._save_color_band_grid(cube_hwc, wavelengths, p, f"{self.method} Output (Colorized Bands)")
             paths["color_grid"] = p
 
         if self.save_gray_band:
@@ -287,6 +284,7 @@ class ModelRunner:
                 self._log(" :: Done", True)
             except Exception as e:
                 self._log(f"[WARN] Skipping '{p}' due to error: {e}")
+            i += 1
         return outs
 
     # ---------- Helpers (I/O, math, viz) ----------

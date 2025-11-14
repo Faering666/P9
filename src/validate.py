@@ -44,6 +44,10 @@ class Validate:
         npy_files = self._scan_dir_for_extension(self.npy_root, "npy")
         mat_files = self._scan_dir_for_extension(self.mat_root, "mat")
 
+        if len(npy_files) == 0:
+            print("[WARNING] :: no numpy files found. Have you used the correct path?")
+            return
+
         pairs, only_npy, only_mat = self._match_pairs(npy_files, mat_files)
 
         if only_npy:
@@ -91,6 +95,8 @@ class Validate:
 
             self._log(f"  mean_abs_err: {metrics['mean_abs_err']}")
             self._log(f"  max_abs_err : {metrics['max_abs_err']}")
+            self._log(f"  psnr_1      : {metrics['psnr_1']}")
+            self._log(f"  psnr_255    : {metrics['psnr_255']}")
             self._log(f"  rmse        : {metrics['rmse']}")
 
             row = {
@@ -98,6 +104,8 @@ class Validate:
                 "mean_abs_err": metrics["mean_abs_err"],
                 "max_abs_err": metrics["max_abs_err"],
                 "mse": metrics["mse"],
+                "psnr_1": metrics["psnr_1"],
+                "psnr_255": metrics["psnr_255"],
                 "rmse": metrics["rmse"],
                 **{f"band_{i:02d}_mae": metrics["per_band_mae"][i] for i in range(len(metrics["per_band_mae"]))},
                 **{f"band_{i:02d}_rmse": metrics["per_band_rmse"][i] for i in range(len(metrics["per_band_rmse"]))}
@@ -136,12 +144,16 @@ class Validate:
         overall_mean_abs_err = df["mean_abs_err"].mean()
         overall_max_abs_err  = df["max_abs_err"].mean()
         overall_mse          = df["mse"].mean()
+        overall_psnr_1       = df["psnr_1"].mean()
+        overall_psnr_255     = df["psnr_255"].mean()
         overall_rmse         = df["rmse"].mean()
 
         self._log("=== OVERALL (averaged across all samples) ===")
         self._log(f"Mean Abs Error (MAE): {overall_mean_abs_err}")
         self._log(f"Max Abs Error:        {overall_max_abs_err}")
         self._log(f"MSE:                  {overall_mse}")
+        self._log(f"PSNR_1:               {overall_psnr_1}")
+        self._log(f"PSNR_255:             {overall_psnr_255}")
         self._log(f"RMSE:                 {overall_rmse}")
 
         # Per-band metrics
@@ -264,6 +276,16 @@ class Validate:
         max_abs_err  = float(np.max(abs_diff))
         mse          = float(np.mean(diff ** 2))
         rmse         = float(np.sqrt(mse))
+        if mse < 1.0e-10:
+            psnr_1   = 100
+        else:
+            psnr_1   = float(10.0 * np.log10((1 ** 2) / mse))
+
+        if mse < 1.0e-10:
+            psnr_255 = 100
+        else:
+            psnr_255 = float(10.0 * np.log10((255 ** 2) / mse))
+        
 
         # Per-band stats
         per_band_mae  = np.mean(abs_diff, axis=(0, 1))            # (C,)
@@ -274,6 +296,8 @@ class Validate:
             "max_abs_err": max_abs_err,
             "mse": mse,
             "rmse": rmse,
+            "psnr_1": psnr_1,
+            "psnr_255": psnr_255,
             "per_band_mae":  [float(x) for x in per_band_mae],
             "per_band_rmse": [float(x) for x in per_band_rmse],
         }
@@ -284,11 +308,11 @@ class Validate:
         
 if __name__ == "__main__":
     evaluator = Validate(
-        npy_root="./class_exp/mst_plus_plus/batch_de7894aa/",
+        npy_root="./class_exp/mst_plus_plus/batch_76b3373e/",
         mat_root="C:/Users/tobia/Downloads/hyper-skin-data/Hyper-Skin(RGB, VIS)",
-        csv_path="comparison_results.csv",
+        csv_path="mst_pp_results.csv",
         verbose=True
     )
 
-    evaluator.run_evaluation()
+    # evaluator.run_evaluation()
     evaluator.summarize_results()
