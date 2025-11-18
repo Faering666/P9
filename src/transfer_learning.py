@@ -7,11 +7,13 @@ from torch.utils.data import random_split
 
 from mstpp.model import MST_Plus_Plus
 
+from torch.utils.tensorboard import SummaryWriter
+
 
 class Opt():
     def __init__(self):
         self.ckp_path = "src/mstpp/mst_plus_plus.pth"
-        self.epochs = 5        
+        self.epochs = 3
         self.lr = 1e-4
         self.batch_size = 1
         self.size = 256
@@ -26,9 +28,24 @@ class TransferLearning:
         self.optimiser = None
         self.options = Opt()
 
+        # Logging
+        self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
+
+
     def load_model(self):
         # Load MST++ model checkpoint
         self._load_pretrained(self.options.ckp_path)
+
+        self.logWriter.add_hparams(
+            {
+                "lr": self.options.lr,
+                "batch_size": self.options.batch_size,
+                "epochs": self.options.epochs,
+                "bands": self.options.bands,
+
+            },
+            {}
+        )
         # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
         # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
@@ -169,6 +186,11 @@ class TransferLearning:
             print(f"Epoch [{epoch+1}/{self.options.epochs}] "
                 f"Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f} | LR: {self.optimiser.param_groups[0]['lr']:.2e}")
 
+            # Tensorboard logging
+            self.logWriter.add_scalar("Loss/Train", train_loss, epoch)
+            self.logWriter.add_scalar("Loss/Val", val_loss, epoch)
+            self.logWriter.add_scalar("LR", self.optimiser.param_groups[0]['lr'], epoch)
+
             # ======== Save best model ========
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -179,6 +201,7 @@ class TransferLearning:
     def save(self, path="model_finetuned.pkl"):
         torch.save(self.model.state_dict(), path)
         print(f"[Saved] Model saved to {path}.")
+        self.logWriter.close()
 
 
 if __name__ == "__main__":
