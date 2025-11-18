@@ -37,11 +37,13 @@ class TransferLearning:
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
-        # pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
+        pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
         if 'model' in checkpoint:
             pretrained_dict = checkpoint['model']
         elif 'model_state_dict' in checkpoint:
             pretrained_dict = checkpoint['model_state_dict']
+        elif 'state_dict' in checkpoint:
+            pretrained_dict = checkpoint["state_dict"]
         else:
             pretrained_dict = checkpoint
 
@@ -53,12 +55,12 @@ class TransferLearning:
             key = k
             if key.startswith("module."):
                 key = key[len("module."):]
-            
+
             if key in model_state and model_state[key].shape == v.shape:
                 filtered[key] = v
             else:
                 skipped.append(key)
-        
+
         # Update and load
         model_state.update(filtered)
         self.model.load_state_dict(model_state)
@@ -66,8 +68,7 @@ class TransferLearning:
         print(f"[Pretrained loading] Loaded {len(filtered)} params, skipped {len(skipped)} params (incompatible shapes).")
         if skipped:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
-
-
+        print("DONE!")
 
     def load_dataset(self, root_dir):
         from data_carrier import DataCarrier
@@ -181,9 +182,9 @@ class TransferLearning:
 if __name__ == "__main__":
     transfer_learning = TransferLearning()
     transfer_learning.load_model()
-    transfer_learning.load_dataset(root_dir="data/")
-    transfer_learning.loss_function()
-    transfer_learning.optimizer_function()
-    transfer_learning.train()
+    # transfer_learning.load_dataset(root_dir="data/")
+    # transfer_learning.loss_function()
+    # transfer_learning.optimizer_function()
+    # transfer_learning.train()
     # transfer_learning.save(path="model_finetuned.pkl")
     transfer_learning.save(path="model_final.pkl")
