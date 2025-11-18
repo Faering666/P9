@@ -32,7 +32,7 @@ class TransferLearning:
         # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
         # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
-        # print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
+        print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
    
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
@@ -76,7 +76,8 @@ class TransferLearning:
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def loss_function(self):
-        self.criterion = torch.nn.L1Loss()
+        # self.criterion = torch.nn.L1Loss()
+        self.criterion = torch.nn.MSELoss()
 
     def optimizer_function(self):
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.options.lr)
@@ -130,7 +131,8 @@ class TransferLearning:
                 )
 
                 self.optimiser.zero_grad()
-                out = self.model(rgb)[-1]
+                out = self.model(rgb)
+                # out = self.model(rgb)[-1]
                 loss = self.criterion(out, target)
                 loss.backward()
                 self.optimiser.step()
@@ -153,7 +155,7 @@ class TransferLearning:
                         extra_channels=extra_channels
                     )
 
-                    out = self.model(rgb, input_mask=(Phi, PhiPhiT))[-1]
+                    out = self.model(rgb)
                     loss = self.criterion(out, target)
                     val_loss += loss.item()
 
@@ -182,9 +184,8 @@ class TransferLearning:
 if __name__ == "__main__":
     transfer_learning = TransferLearning()
     transfer_learning.load_model()
-    # transfer_learning.load_dataset(root_dir="data/")
-    # transfer_learning.loss_function()
-    # transfer_learning.optimizer_function()
-    # transfer_learning.train()
-    # transfer_learning.save(path="model_finetuned.pkl")
+    transfer_learning.load_dataset(root_dir="data/")
+    transfer_learning.loss_function()
+    transfer_learning.optimizer_function()
+    transfer_learning.train()
     transfer_learning.save(path="model_final.pkl")
