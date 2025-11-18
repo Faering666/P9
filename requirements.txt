@@ -10,3 +10,6 @@ hdf5storage
 tqdm
 spectral
 pandas
+
+# Logging
+tensorboard

@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
 
+from torch.utils.tensorboard import SummaryWriter
+
 from ssr.model import Net
 
 
@@ -29,6 +31,7 @@ class TransferLearning:
         self.criterion = None
         self.optimiser = None
         self.options = Opt()
+        self.logWriter = None
 
     def load_model(self):
         from ssr.rgb_transfer import SSRNetRGBTransfer
@@ -151,10 +154,24 @@ class TransferLearning:
 
 if __name__ == "__main__":
     transfer_learning = TransferLearning()
+
+    # Tensorboard logging
+    transfer_learning.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
+
     transfer_learning.load_model()
     transfer_learning.load_dataset(root_dir="data/")
     transfer_learning.loss_function()
+
+    # Log scalar
+    transfer_learning.logWriter.add_scalar("Learning Rate", transfer_learning.options.lr)
+
+
     transfer_learning.optimizer_function(learning_rate=1e-4) # maybe try with lr 5e-5
     transfer_learning.train(epochs=25)
     # transfer_learning.save(path="model_finetuned.pkl")
     transfer_learning.save(path="model_final.pkl")
+    
+    # Close tensboard writer
+    transfer_learning.logWriter.flush()
+    transfer_learning.logWriter.close()
+
