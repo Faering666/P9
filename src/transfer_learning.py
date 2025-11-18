@@ -32,16 +32,18 @@ class TransferLearning:
         # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
         # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
-        # print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
+        print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
    
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
-        # pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
+        pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
         if 'model' in checkpoint:
             pretrained_dict = checkpoint['model']
         elif 'model_state_dict' in checkpoint:
             pretrained_dict = checkpoint['model_state_dict']
+        elif 'state_dict' in checkpoint:
+            pretrained_dict = checkpoint["state_dict"]
         else:
             pretrained_dict = checkpoint
 
@@ -53,12 +55,12 @@ class TransferLearning:
             key = k
             if key.startswith("module."):
                 key = key[len("module."):]
-            
+
             if key in model_state and model_state[key].shape == v.shape:
                 filtered[key] = v
             else:
                 skipped.append(key)
-        
+
         # Update and load
         model_state.update(filtered)
         self.model.load_state_dict(model_state)
@@ -66,8 +68,7 @@ class TransferLearning:
         print(f"[Pretrained loading] Loaded {len(filtered)} params, skipped {len(skipped)} params (incompatible shapes).")
         if skipped:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
-
-
+        print("DONE!")
 
     def load_dataset(self, root_dir):
         from data_carrier import DataCarrier
@@ -75,7 +76,8 @@ class TransferLearning:
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def loss_function(self):
-        self.criterion = torch.nn.L1Loss()
+        # self.criterion = torch.nn.L1Loss()
+        self.criterion = torch.nn.MSELoss()
 
     def optimizer_function(self):
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.options.lr)
@@ -129,7 +131,8 @@ class TransferLearning:
                 )
 
                 self.optimiser.zero_grad()
-                out = self.model(rgb)[-1]
+                out = self.model(rgb)
+                # out = self.model(rgb)[-1]
                 loss = self.criterion(out, target)
                 loss.backward()
                 self.optimiser.step()
@@ -152,7 +155,7 @@ class TransferLearning:
                         extra_channels=extra_channels
                     )
 
-                    out = self.model(rgb, input_mask=(Phi, PhiPhiT))[-1]
+                    out = self.model(rgb)
                     loss = self.criterion(out, target)
                     val_loss += loss.item()
 
@@ -185,5 +188,4 @@ if __name__ == "__main__":
     transfer_learning.loss_function()
     transfer_learning.optimizer_function()
     transfer_learning.train()
-    # transfer_learning.save(path="model_finetuned.pkl")
     transfer_learning.save(path="model_final.pkl")
