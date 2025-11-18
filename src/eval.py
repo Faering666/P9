@@ -2,7 +2,8 @@ import sys
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from ssr.rgb_transfer import SSRNetRGBTransfer 
+# from ssr.rgb_transfer import SSRNetRGBTransfer 
+from mstpp.model import MST_Plus_Plus
 from data_carrier import DataCarrier as SSRDataset 
 import os
 
@@ -10,15 +11,16 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class Opt:
     def __init__(self):
-        self.stage = 9
+        self.stage = 3
         self.bands = 4
         self.size = 256
 
 opt = Opt()
-model = SSRNetRGBTransfer(opt, device=device).to(device)
+# model = SSRNetRGBTransfer(opt, device=device).to(device)
+model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
 
 ckpt = torch.load("model_final.pkl", map_location=device)
-state_dict = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
+state_dict = ckpt.get("state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
 
 model_sd = model.state_dict()
 filtered = {}
@@ -54,7 +56,7 @@ rgb = rgb.unsqueeze(0).to(device)
 dummy_mask = create_dummy_mask(rgb.size(0), opt.bands, rgb.size(2), rgb.size(3), device)
 
 with torch.no_grad():
-    output = model(rgb, dummy_mask)
+    output = model(rgb)
     if isinstance(output, list): 
         output = output[-1]
     pred = output.squeeze(0).cpu().numpy()
