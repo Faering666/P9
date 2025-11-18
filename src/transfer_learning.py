@@ -5,21 +5,17 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
 
-from ssr.model import Net
+from mstpp.model import MST_Plus_Plus
 
 
 class Opt():
     def __init__(self):
-        self.stage = 9 # Number of stages
-        self.bands = 4  # Number of output bands
-        self.size = 256  # Resize to this
-
-        self.epochs = 15 
-        self.batch_size = 1
+        self.ckp_path = "src/mstpp/mst_plus_plus.pth"
+        self.epochs = 5        
         self.lr = 1e-4
-        self.step_size = 20
-        self.gamma = 0.5
-
+        self.batch_size = 1
+        self.size = 256
+        self.bands = 3
 
 class TransferLearning:
     def __init__(self):
@@ -31,14 +27,47 @@ class TransferLearning:
         self.options = Opt()
 
     def load_model(self):
-        from ssr.rgb_transfer import SSRNetRGBTransfer
-        self.model = SSRNetRGBTransfer(
-            self.options,
-            load_pretrained_checkpoint="src/baseline_models/model_L.pkl",
-            device=self.device
-        )
-        self.model.to(self.device)
-        print(f"[Loaded] Model loaded on {self.device}.")
+        # Load MST++ model checkpoint
+        self._load_pretrained(self.options.ckp_path)
+        # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
+        # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
+        # print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
+   
+    def _load_pretrained(self, checkpoint_path):
+        self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
+        # pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
+        if 'model' in checkpoint:
+            pretrained_dict = checkpoint['model']
+        elif 'model_state_dict' in checkpoint:
+            pretrained_dict = checkpoint['model_state_dict']
+        else:
+            pretrained_dict = checkpoint
+
+        model_state = self.model.state_dict()
+        filtered = {}
+        skipped = []
+
+        for k, v in pretrained_dict.items():
+            key = k
+            if key.startswith("module."):
+                key = key[len("module."):]
+            
+            if key in model_state and model_state[key].shape == v.shape:
+                filtered[key] = v
+            else:
+                skipped.append(key)
+        
+        # Update and load
+        model_state.update(filtered)
+        self.model.load_state_dict(model_state)
+
+        print(f"[Pretrained loading] Loaded {len(filtered)} params, skipped {len(skipped)} params (incompatible shapes).")
+        if skipped:
+            print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
+
+
 
     def load_dataset(self, root_dir):
         from data_carrier import DataCarrier
@@ -48,8 +77,8 @@ class TransferLearning:
     def loss_function(self):
         self.criterion = torch.nn.L1Loss()
 
-    def optimizer_function(self, learning_rate=1e-4):
-        self.optimiser = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+    def optimizer_function(self):
+        self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.options.lr)
 
     def _create_dummy_mask(self, batch_size, H, W, extra_channels):
         """
@@ -62,8 +91,8 @@ class TransferLearning:
             Phi, PhiPhiT = None, None
         return Phi, PhiPhiT
 
-    def train(self, epochs):
-        print(f"[Training] Training started on {self.device} for {epochs} epochs...")
+    def train(self):
+        print(f"[Training] Training started on {self.device} for {self.options.epochs} epochs...")
         self.model.train()
 
         # Split dataset into 90% train / 10% val
@@ -80,7 +109,7 @@ class TransferLearning:
 
         best_val_loss = float('inf')
 
-        for epoch in range(epochs):
+        for epoch in range(self.options.epochs):
             # ======== Training Phase ========
             self.model.train()
             train_loss = 0.0
@@ -88,7 +117,7 @@ class TransferLearning:
                 rgb = data['rgb'].to(self.device)
                 target = data['ms'].to(self.device)
 
-                expected_in_channels = self.model.ssr.initial.in_channels
+                expected_in_channels = self.options.bands
                 f0_channels = self.options.bands
                 extra_channels = expected_in_channels - f0_channels
 
@@ -100,7 +129,7 @@ class TransferLearning:
                 )
 
                 self.optimiser.zero_grad()
-                out = self.model(rgb, input_mask=(Phi, PhiPhiT))[-1]
+                out = self.model(rgb)[-1]
                 loss = self.criterion(out, target)
                 loss.backward()
                 self.optimiser.step()
@@ -134,7 +163,7 @@ class TransferLearning:
                 print(f"[LR Scheduler] LR changed to {new_lr:.2e}")
 
             # ======== Logging ========
-            print(f"Epoch [{epoch+1}/{epochs}] "
+            print(f"Epoch [{epoch+1}/{self.options.epochs}] "
                 f"Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f} | LR: {self.optimiser.param_groups[0]['lr']:.2e}")
 
             # ======== Save best model ========
@@ -154,7 +183,7 @@ if __name__ == "__main__":
     transfer_learning.load_model()
     transfer_learning.load_dataset(root_dir="data/")
     transfer_learning.loss_function()
-    transfer_learning.optimizer_function(learning_rate=1e-4) # maybe try with lr 5e-5
-    transfer_learning.train(epochs=25)
+    transfer_learning.optimizer_function()
+    transfer_learning.train()
     # transfer_learning.save(path="model_finetuned.pkl")
     transfer_learning.save(path="model_final.pkl")
