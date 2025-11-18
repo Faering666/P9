@@ -16,6 +16,7 @@ data/*.TIF
 
 **.venv**
 **venv**
+logs/
 
 model_best.pkl
 model_final.pkl
