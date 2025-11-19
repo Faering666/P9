@@ -12,6 +12,7 @@ data/*.jpg
 data/*.tif
 data/*.JPG
 data/*.TIF
+data/*/
 .env
 
 **.venv**

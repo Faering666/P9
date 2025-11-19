@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 # from ssr.rgb_transfer import SSRNetRGBTransfer 
 from mstpp.model import MST_Plus_Plus
-from data_carrier import DataCarrier as SSRDataset 
+from data_carrier import DataCarrier
 import os
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -47,7 +47,7 @@ def create_dummy_mask(batch_size, bands, H, W, device):
 
 dataset = SSRDataset(root_dir="data/", size=opt.size)
 
-sample = dataset[69]
+sample = dataset[21]
 rgb = sample["rgb"] 
 target = sample["ms"]
 
