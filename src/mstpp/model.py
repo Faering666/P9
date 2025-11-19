@@ -186,7 +186,7 @@ class MSAB(nn.Module):
         return out
 
 class MST(nn.Module):
-    def __init__(self, in_dim=4, out_dim=4, dim=4, stage=2, num_blocks=[2,4,4]):
+    def __init__(self, in_dim=4, out_dim=4, dim=31, stage=2, num_blocks=[2,4,4]):
         super(MST, self).__init__()
         self.dim = dim
         self.stage = stage

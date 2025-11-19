@@ -45,7 +45,7 @@ def create_dummy_mask(batch_size, bands, H, W, device):
     PhiPhiT = torch.ones(batch_size, 1, H, W, device=device)
     return (Phi, PhiPhiT)
 
-dataset = SSRDataset(root_dir="data/", size=opt.size)
+dataset = DataCarrier(root_dir="data/", size=opt.size)
 
 sample = dataset[21]
 rgb = sample["rgb"] 

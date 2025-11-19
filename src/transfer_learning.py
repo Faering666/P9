@@ -72,9 +72,13 @@ class TransferLearning:
             key = k
             if key.startswith("module."):
                 key = key[len("module."):]
-
-            if key in model_state and model_state[key].shape == v.shape:
-                filtered[key] = v
+            
+            if key in model_state:
+                if model_state[key].shape == v.shape:
+                    filtered[key] = v
+                else:
+                    print(f"[Shape mismatch] {key}: model={model_state[key].shape}, pretrained={v.shape}")
+                    skipped.append(key)
             else:
                 skipped.append(key)
 
