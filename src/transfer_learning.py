@@ -13,11 +13,17 @@ from torch.utils.tensorboard import SummaryWriter
 class Opt():
     def __init__(self):
         self.ckp_path = "src/mstpp/mst_plus_plus.pth"
-        self.epochs = 3
+        self.epochs = 100
         self.lr = 1e-4
         self.batch_size = 1
         self.size = 256
         self.bands = 3
+        # Progressive unfreezing options
+        # If None, will be set after model is loaded to freeze all but the last body module
+        self.progressive_unfreeze = True
+        self.freeze_body_initial = None
+        # Unfreeze one additional body module every `unfreeze_every` epochs
+        self.unfreeze_every = 5
 
 class TransferLearning:
     def __init__(self):
@@ -35,6 +41,24 @@ class TransferLearning:
     def load_model(self):
         # Load MST++ model checkpoint
         self._load_pretrained(self.options.ckp_path)
+
+        # Apply initial freezing policy (if enabled). This will also rebuild the optimiser
+        # to include only trainable parameters.
+        try:
+            self._initial_freeze()
+        except Exception as e:
+            print(f"[Warning] Failed to apply initial freeze: {e}")
+
+        self.logWriter.add_hparams(
+            {
+                "lr": self.options.lr,
+                "batch_size": self.options.batch_size,
+                "epochs": self.options.epochs,
+                "bands": self.options.bands,
+
+            },
+            {}
+        )
 
         self.logWriter.add_hparams(
             {
@@ -91,6 +115,69 @@ class TransferLearning:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
         print("DONE!")
 
+        # NOTE: removed interactive breakpoint for automated runs
+
+    def set_requires_grad(self, module, requires_grad: bool):
+        """Recursively set requires_grad for all parameters in a module."""
+        for p in module.parameters():
+            p.requires_grad = requires_grad
+
+    def _initial_freeze(self):
+        """Apply initial freezing according to options. Freezes a prefix of body modules.
+
+        If options.freeze_body_initial is None it will default to freezing all but the
+        last body module (so at least one body module is trainable).
+        """
+        if not self.options.progressive_unfreeze:
+            return
+
+        total = len(self.model.body)
+        if self.options.freeze_body_initial is None:
+            # freeze all but last module by default
+            k = max(0, total - 1)
+            self.options.freeze_body_initial = k
+        else:
+            k = int(self.options.freeze_body_initial)
+
+        # Freeze modules 0..k-1, leave k..end trainable
+        for i, mod in enumerate(self.model.body):
+            if i < k:
+                self.set_requires_grad(mod, False)
+            else:
+                self.set_requires_grad(mod, True)
+
+
+        self._frozen_body_count = k
+        print(f"[Freeze] Initially froze {self._frozen_body_count} body modules out of {total}.")
+        # Rebuild optimiser so it only includes trainable params
+        self._rebuild_optimizer()
+
+
+    def _unfreeze_step(self):
+        """Unfreeze one additional body module from the frozen prefix (right-to-left).
+        Returns True if something was unfrozen.
+        """
+        if not hasattr(self, "_frozen_body_count"):
+            return False
+        if self._frozen_body_count <= 0:
+            return False
+
+        # Unfreeze the last frozen module index
+        idx = self._frozen_body_count - 1
+        self.set_requires_grad(self.model.body[idx], True)
+        self._frozen_body_count -= 1
+        print(f"[Unfreeze] Unfroze body module {idx}. Remaining frozen: {self._frozen_body_count}")
+        # Rebuild optimiser to include newly trainable params
+        self._rebuild_optimizer()
+        return True
+
+    def _rebuild_optimizer(self):
+        """Recreate the optimiser to include only parameters with requires_grad=True."""
+        params = [p for p in self.model.parameters() if p.requires_grad]
+        self.optimiser = torch.optim.Adam(params, lr=self.options.lr)
+        n_params = sum(1 for _ in params)
+        print(f"[Optimiser] Rebuilt optimiser with {n_params} parameter tensors (trainable).")
+
     def load_dataset(self, root_dir):
         from data_carrier import DataCarrier
         self.dataset = DataCarrier(root_dir, size=self.options.size)
@@ -101,7 +188,9 @@ class TransferLearning:
         self.criterion = torch.nn.MSELoss()
 
     def optimizer_function(self):
-        self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.options.lr)
+        # Only include parameters that require gradients (respecting any freezes)
+        params = [p for p in self.model.parameters() if p.requires_grad]
+        self.optimiser = torch.optim.Adam(params, lr=self.options.lr)
 
     def _create_dummy_mask(self, batch_size, H, W, extra_channels):
         """
@@ -133,6 +222,13 @@ class TransferLearning:
         best_val_loss = float('inf')
 
         for epoch in range(self.options.epochs):
+            # Progressive unfreezing schedule: unfreeze one body module every `unfreeze_every` epochs
+            if self.options.progressive_unfreeze and epoch > 0 and (epoch % self.options.unfreeze_every == 0):
+                changed = self._unfreeze_step()
+                if changed:
+                    # Optimiser was rebuilt; recreate scheduler to attach to the new optimiser
+                    scheduler = ReduceLROnPlateau(self.optimiser, mode='min', factor=0.5, patience=3)
+
             # ======== Training Phase ========
             self.model.train()
             train_loss = 0.0
@@ -153,7 +249,6 @@ class TransferLearning:
 
                 self.optimiser.zero_grad()
                 out = self.model(rgb)
-                # out = self.model(rgb)[-1]
                 loss = self.criterion(out, target)
                 loss.backward()
                 self.optimiser.step()
@@ -177,13 +272,17 @@ class TransferLearning:
                     )
 
                     out = self.model(rgb)
+                    if hasattr(self, 'adapter') and self.adapter is not None:
+                        out = self.adapter(out)
                     loss = self.criterion(out, target)
                     val_loss += loss.item()
 
             val_loss /= len(val_loader)
+            # step scheduler and print if LR changed
+            old_lr = self.optimiser.param_groups[0]['lr']
             scheduler.step(val_loss)
             new_lr = self.optimiser.param_groups[0]['lr']
-            if new_lr != self.optimiser.param_groups[0]['lr']:
+            if new_lr != old_lr:
                 print(f"[LR Scheduler] LR changed to {new_lr:.2e}")
 
             # ======== Logging ========
@@ -211,7 +310,7 @@ class TransferLearning:
 if __name__ == "__main__":
     transfer_learning = TransferLearning()
     transfer_learning.load_model()
-    transfer_learning.load_dataset(root_dir="data/")
+    transfer_learning.load_dataset(root_dir="data/Potato/train/img/")
     transfer_learning.loss_function()
     transfer_learning.optimizer_function()
     transfer_learning.train()
