@@ -16,7 +16,7 @@ class Opt():
         self.epochs = 100
         self.lr = 1e-4
         self.batch_size = 1
-        self.size = 256
+        self.size = 208
         self.bands = 4
         # When True, instantiate a fresh MST_Plus_Plus and train from scratch
         self.train_from_scratch = False
