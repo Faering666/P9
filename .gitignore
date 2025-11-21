@@ -12,10 +12,12 @@ data/*.jpg
 data/*.tif
 data/*.JPG
 data/*.TIF
+data/*/
 .env
 
 **.venv**
 **venv**
+logs/
 
 model_best.pkl
 model_final.pkl
