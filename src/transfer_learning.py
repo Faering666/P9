@@ -295,14 +295,27 @@ class TransferLearning:
             # ======== Save best model ========
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                self.save("model_best.pkl")
+                self.save("model_best.pkl", epoch)
 
         print(f"[Done] Best val loss: {best_val_loss:.6f}")
 
-    def save(self, path="model_finetuned.pkl"):
-        torch.save(self.model.state_dict(), path)
-        print(f"[Saved] Model saved to {path}.")
-        self.logWriter.close()
+    def save(self, path="model_finetuned.pkl", epoch=None):
+        checkpoint = {
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimiser.state_dict(),
+            'epoch': epoch,
+            'options': {
+                'lr': self.options.lr,
+                'batch_size': self.options.batch_size,
+                'bands': self.options.bands,
+                'progressive_unfreeze': self.options.progressive_unfreeze,
+                'freeze_body_initial': self.options.freeze_body_initial,
+                'unfreeze_every': self.options.unfreeze_every,
+            },
+            'frozen_body_count': getattr(self, '_frozen_body_count', 0),
+        }
+        torch.save(checkpoint, path)
+        print(f"[Saved] Model checkpoint saved to {path} (epoch {epoch}).")
 
 
 if __name__ == "__main__":
