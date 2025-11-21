@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 class Opt():
     def __init__(self):
         self.ckp_path = "src/mstpp/mst_plus_plus.pth"
-        self.epochs = 3
+        self.epochs = 100
         self.lr = 1e-4
         self.batch_size = 1
         self.size = 208
