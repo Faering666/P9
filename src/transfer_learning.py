@@ -128,6 +128,7 @@ class TransferLearning:
         If options.freeze_body_initial is None it will default to freezing all but the
         last body module (so at least one body module is trainable).
         """
+        print("intial freeze")
         if not self.options.progressive_unfreeze:
             return
 
@@ -222,13 +223,6 @@ class TransferLearning:
         best_val_loss = float('inf')
 
         for epoch in range(self.options.epochs):
-            # Progressive unfreezing schedule: unfreeze one body module every `unfreeze_every` epochs
-            if self.options.progressive_unfreeze and epoch > 0 and (epoch % self.options.unfreeze_every == 0):
-                changed = self._unfreeze_step()
-                if changed:
-                    # Optimiser was rebuilt; recreate scheduler to attach to the new optimiser
-                    scheduler = ReduceLROnPlateau(self.optimiser, mode='min', factor=0.5, patience=3)
-
             # ======== Training Phase ========
             self.model.train()
             train_loss = 0.0
@@ -282,7 +276,14 @@ class TransferLearning:
             new_lr = self.optimiser.param_groups[0]['lr']
             if new_lr != old_lr:
                 print(f"[LR Scheduler] LR changed to {new_lr:.2e}")
+		# Progressive unfreezing schedule: unfreeze one body module every `unfreeze_every` epochs
+                changed = self._unfreeze_step()
+                if changed:
+                    # Optimiser was rebuilt; recreate scheduler to attach to the new optimiser
+                    scheduler = ReduceLROnPlateau(self.optimiser, mode='min', factor=0.5, patience=3)
 
+
+	    
             # ======== Logging ========
             print(f"Epoch [{epoch+1}/{self.options.epochs}] "
                 f"Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f} | LR: {self.optimiser.param_groups[0]['lr']:.2e}")
@@ -307,7 +308,7 @@ class TransferLearning:
 
 if __name__ == "__main__":
     transfer_learning = TransferLearning()
-    transfer_learning.options.train_from_scratch = True
+    transfer_learning.options.train_from_scratch = False
     transfer_learning.load_model()
     transfer_learning.load_dataset(root_dir="data/")
     transfer_learning.loss_function()
