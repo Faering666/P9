@@ -17,7 +17,12 @@ class Opt():
         self.lr = 1e-4
         self.batch_size = 1
         self.size = 256
-        self.bands = 3
+        self.bands = 4
+        # When True, instantiate a fresh MST_Plus_Plus and train from scratch
+        self.train_from_scratch = False
+        # Model architecture params for scratch training
+        self.n_feat = 4
+        self.stage = 3
         # Progressive unfreezing options
         # If None, will be set after model is loaded to freeze all but the last body module
         self.progressive_unfreeze = True
@@ -39,26 +44,21 @@ class TransferLearning:
 
 
     def load_model(self):
-        # Load MST++ model checkpoint
-        self._load_pretrained(self.options.ckp_path)
-
-        # Apply initial freezing policy (if enabled). This will also rebuild the optimiser
-        # to include only trainable parameters.
-        try:
-            self._initial_freeze()
-        except Exception as e:
-            print(f"[Warning] Failed to apply initial freeze: {e}")
-
-        self.logWriter.add_hparams(
-            {
-                "lr": self.options.lr,
-                "batch_size": self.options.batch_size,
-                "epochs": self.options.epochs,
-                "bands": self.options.bands,
-
-            },
-            {}
-        )
+        # Load pretrained or instantiate from scratch depending on options
+        if self.options.train_from_scratch:
+            self.model = MST_Plus_Plus(in_channels=3, out_channels=self.options.bands, n_feat=self.options.n_feat, stage=self.options.stage).to(self.device)
+            print(f"[Init] Created new MST++ model (n_feat={self.options.n_feat}, stage={self.options.stage}) for training from scratch.")
+        else:
+            # Load MST++ model checkpoint
+            self._load_pretrained(self.options.ckp_path)
+            # Apply initial freezing policy (if enabled). This will also rebuild the optimiser
+            # to include only trainable parameters.
+            try:
+                self._initial_freeze()
+            except Exception as e:
+                print(f"[Warning] Failed to apply initial freeze: {e}")
+            
+            print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
 
         self.logWriter.add_hparams(
             {
@@ -73,7 +73,7 @@ class TransferLearning:
         # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
         # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
-        print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
+
    
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
@@ -180,12 +180,12 @@ class TransferLearning:
 
     def load_dataset(self, root_dir):
         from data_carrier import DataCarrier
-        self.dataset = DataCarrier(root_dir, size=self.options.size)
+        self.dataset = DataCarrier(root_dir)
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def loss_function(self):
-        # self.criterion = torch.nn.L1Loss()
-        self.criterion = torch.nn.MSELoss()
+        self.criterion = torch.nn.L1Loss()
+        # self.criterion = torch.nn.MSELoss()
 
     def optimizer_function(self):
         # Only include parameters that require gradients (respecting any freezes)
@@ -272,8 +272,6 @@ class TransferLearning:
                     )
 
                     out = self.model(rgb)
-                    if hasattr(self, 'adapter') and self.adapter is not None:
-                        out = self.adapter(out)
                     loss = self.criterion(out, target)
                     val_loss += loss.item()
 
@@ -309,8 +307,9 @@ class TransferLearning:
 
 if __name__ == "__main__":
     transfer_learning = TransferLearning()
+    transfer_learning.options.train_from_scratch = True
     transfer_learning.load_model()
-    transfer_learning.load_dataset(root_dir="data/Potato/train/img/")
+    transfer_learning.load_dataset(root_dir="data/")
     transfer_learning.loss_function()
     transfer_learning.optimizer_function()
     transfer_learning.train()
