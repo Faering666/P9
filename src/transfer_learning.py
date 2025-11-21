@@ -13,10 +13,10 @@ from torch.utils.tensorboard import SummaryWriter
 class Opt():
     def __init__(self):
         self.ckp_path = "src/mstpp/mst_plus_plus.pth"
-        self.epochs = 100
+        self.epochs = 3
         self.lr = 1e-4
         self.batch_size = 1
-        self.size = 256
+        self.size = 208
         self.bands = 4
         # When True, instantiate a fresh MST_Plus_Plus and train from scratch
         self.train_from_scratch = False
@@ -25,7 +25,7 @@ class Opt():
         self.stage = 3
         # Progressive unfreezing options
         # If None, will be set after model is loaded to freeze all but the last body module
-        self.progressive_unfreeze = True
+        self.progressive_unfreeze = False
         self.freeze_body_initial = None
         # Unfreeze one additional body module every `unfreeze_every` epochs
         self.unfreeze_every = 5

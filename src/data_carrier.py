@@ -14,13 +14,12 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["Red_Channel_", "Green_Channel_", "Red_Edge_Channel_", "Near_Infrared_Channel_"]
 
-    def __init__(self, root_dir, patch_size=128, img_size=416):
+    def __init__(self, root_dir):
         self.root_dir = root_dir
-        self.patch_size = patch_size
-        self.img_size = img_size
 
         all_files = set(os.listdir(root_dir))
         candidate_rgb = sorted([f for f in all_files if f.startswith("Image")])
+        candidate_rgb = [f for f in candidate_rgb if any(f.endswith(f"_{x}.jpg") for x in [0, 1, 2, 3])]
 
         self.bases = []
         for rgb_name in candidate_rgb:
@@ -68,25 +67,14 @@ class DataCarrier(Dataset):
             bands.append(band)
         target = np.stack(bands, axis=-1)
 
-        # TODO: Don't hardcode resize to 416 here.
-        rgb = cv2.resize(rgb, (self.img_size, self.img_size))
-        target = cv2.resize(target, (self.img_size, self.img_size))
-
-        # Random patch sampling
-        max_offset = self.img_size - self.patch_size
-        x = random.randint(0, max_offset)
-        y = random.randint(0, max_offset)
-        rgb_patch = rgb[y:y+self.patch_size, x:x+self.patch_size, :]
-        ms_patch = target[y:y+self.patch_size, x:x+self.patch_size, :]
-
-        rgb_tensor = torch.from_numpy(rgb_patch).permute(2, 0, 1).float()
-        ms_tensor = torch.from_numpy(ms_patch).permute(2, 0, 1).float()
-
-        return {"rgb": rgb_tensor, "ms": ms_tensor}
+        # Convert to torch tensors and rearrange to [C, H, W]
+        rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
+        target = torch.from_numpy(target).permute(2, 0, 1).float()
+        return {"rgb": rgb, "ms": target}
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
-    dataset = DataCarrier(root_dir="data/", patch_size=128, img_size=416)
+    dataset = DataCarrier(root_dir="data/")
     print(len(dataset))
     sample = dataset[0]
     print("rgb patch shape:", sample["rgb"].shape)
