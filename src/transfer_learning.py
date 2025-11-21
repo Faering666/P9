@@ -25,7 +25,7 @@ class Opt():
         self.stage = 3
         # Progressive unfreezing options
         # If None, will be set after model is loaded to freeze all but the last body module
-        self.progressive_unfreeze = False
+        self.progressive_unfreeze = True
         self.freeze_body_initial = None
         # Unfreeze one additional body module every `unfreeze_every` epochs
         self.unfreeze_every = 5
