@@ -1,10 +1,9 @@
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.data import random_split
-from torch.utils.tensorboard import SummaryWriter
-import argparse
+
 from mstpp.model import MST_Plus_Plus
 
+from torch.utils.tensorboard import SummaryWriter
 import os
 from pathlib import Path
 
@@ -256,13 +255,6 @@ class TransferLearning:
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
 
-    def load_dataset(self, root_dir):
-        from data_carrier import DataCarrier
-        self.dataset = DataCarrier(root_dir)
-        print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
-
-
-
     def run_stage_1(self, save_dir="checkpoints"):
         """
         Stage 1: Load or train base model.
@@ -475,33 +467,22 @@ class TransferLearning:
 # Usage example
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
-    parser.add_argument("--data_path", default="data")
-    args = parser.parse_args()
-    root_dir = args.data_path
-
     # Initialize the transfer learning pipeline
     tl = TransferLearning()
 
     # Configure options
-    tl.options.ckp_path = "src/baseline_models/mst_plus_plus.pth"  # Or set train_from_scratch=True
+    tl.options.ckp_path = "baseline_models/mst_plus_plus.pth"  # Or set train_from_scratch=True
     tl.options.train_from_scratch = False
     tl.options.bands = 4
     tl.options.n_feat = 4
     tl.options.stage = 3
-    tl.load_dataset(root_dir)
+
     # Setup criterion
-    tl.criterion = torch.nn.L1Loss()
+    tl.criterion = torch.nn.MSELoss()
 
     # Load the model (Stage 1)
-    tl.load_model()       
+    tl.load_model()
 
-    # Split dataset into 90% train / 10% val
-    total_len = len(tl.dataset)
-    val_len = max(1, int(0.1 * total_len))
-    train_len = total_len - val_len
-    train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
-    
     # Prepare your dataloaders
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
     val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
