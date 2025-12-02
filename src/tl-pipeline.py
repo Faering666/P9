@@ -471,7 +471,7 @@ if __name__ == "__main__":
     tl = TransferLearning()
 
     # Configure options
-    tl.options.ckp_path = "path/to/pretrained_model.pth"  # Or set train_from_scratch=True
+    tl.options.ckp_path = "baseline_models/mst_plus_plus.pth"  # Or set train_from_scratch=True
     tl.options.train_from_scratch = False
     tl.options.bands = 4
     tl.options.n_feat = 4
@@ -484,8 +484,8 @@ if __name__ == "__main__":
     tl.load_model()
 
     # Prepare your dataloaders
-    train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False)
+    train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
