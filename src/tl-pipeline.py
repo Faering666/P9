@@ -255,6 +255,13 @@ class TransferLearning:
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
 
+    def load_dataset(self, root_dir):
+        from data_carrier import DataCarrier
+        self.dataset = DataCarrier(root_dir)
+        print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
+
+
+
     def run_stage_1(self, save_dir="checkpoints"):
         """
         Stage 1: Load or train base model.
@@ -476,13 +483,19 @@ if __name__ == "__main__":
     tl.options.bands = 4
     tl.options.n_feat = 4
     tl.options.stage = 3
-
+    tl.load_dataset("path/to/dataset")
     # Setup criterion
     tl.criterion = torch.nn.MSELoss()
 
     # Load the model (Stage 1)
-    tl.load_model()
+    tl.load_model()       
 
+    # Split dataset into 90% train / 10% val
+    total_len = len(self.dataset)
+    val_len = max(1, int(0.1 * total_len))
+    train_len = total_len - val_len
+    train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
+    
     # Prepare your dataloaders
     train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False)
