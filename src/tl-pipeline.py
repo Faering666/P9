@@ -491,7 +491,7 @@ if __name__ == "__main__":
     tl.options.stage = 3
     tl.load_dataset(root_dir)
     # Setup criterion
-    tl.criterion = torch.nn.MSELoss()
+    tl.criterion = torch.nn.L1Loss()
 
     # Load the model (Stage 1)
     tl.load_model()       
