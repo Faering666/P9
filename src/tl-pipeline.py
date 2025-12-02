@@ -1,9 +1,5 @@
-from torch import device
 import torch
 from torch.utils.data import DataLoader
-
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import random_split
 
 from mstpp.model import MST_Plus_Plus
 
