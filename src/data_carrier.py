@@ -10,7 +10,7 @@ class DataCarrier(Dataset):
     Dataset for paired RGB and multi-spectral (MS) images.
 
     Returns:
-        dict with keys 'rgb' and 'ms', each as a torch.FloatTensor [C, H, W]
+        tuple: (rgb, ms) where each is a torch.FloatTensor [C, H, W]
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
@@ -18,10 +18,10 @@ class DataCarrier(Dataset):
         self.root_dir = root_dir
 
         all_files = set(os.listdir(root_dir))
-        candidate_rgb = sorted([f for f in all_files if any(f.endswith(f"_{x}.JPG") for x in range(71))])
-        print(candidate_rgb[0])
+        rgb_paths = sorted([f for f in all_files if any(f.endswith(f"_{x}.JPG") for x in range(71))])
 
-        self.bases = candidate_rgb
+        self.bases = rgb_paths
+        self.size = 256
 
         if not self.bases:
             raise RuntimeError(f"No complete samples found in '{root_dir}'.")
@@ -48,6 +48,7 @@ class DataCarrier(Dataset):
         # Load rgb
         rgb_path = os.path.join(self.root_dir, base)
         rgb = self._load_and_normalize(rgb_path)
+        rgb = cv2.resize(rgb, (self.size, self.size))[:, :, ::-1].copy()
         rgb = rgb[:,:,::-1].copy() # bgr -> rgb
 
         # Load ms bands in correct order (G, R, RE, NIR)
@@ -58,16 +59,21 @@ class DataCarrier(Dataset):
             band = self._load_and_normalize(path)
             bands.append(band)
         target = np.stack(bands, axis=-1)
+        target = cv2.resize(target, (self.size, self.size)).copy()
+
+        # Ensure target has 3 dimensions [H, W, C]
+        if target.ndim == 2:
+            target = target[:, :, np.newaxis]
 
         # Convert to torch tensors and rearrange to [C, H, W]
         rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
         target = torch.from_numpy(target).permute(2, 0, 1).float()
-        return {"rgb": rgb, "ms": target}
+        return rgb, target
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
     dataset = DataCarrier(root_dir="data/")
     print(len(dataset))
-    sample = dataset[0]
-    print("rgb patch shape:", sample["rgb"].shape)
-    print("ms patch shape:", sample["ms"].shape)
+    rgb, ms = dataset[0]
+    print("rgb patch shape:", rgb.shape)
+    print("ms patch shape:", ms.shape)
