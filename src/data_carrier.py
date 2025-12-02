@@ -12,25 +12,16 @@ class DataCarrier(Dataset):
     Returns:
         dict with keys 'rgb' and 'ms', each as a torch.FloatTensor [C, H, W]
     """
-    BAND_ORDER = ["Red_Channel_", "Green_Channel_", "Red_Edge_Channel_", "Near_Infrared_Channel_"]
+    BAND_ORDER = ["G", "R", "RE", "NIR"]
 
     def __init__(self, root_dir):
         self.root_dir = root_dir
 
         all_files = set(os.listdir(root_dir))
-        candidate_rgb = sorted([f for f in all_files if f.startswith("Image")])
-        candidate_rgb = [f for f in candidate_rgb if any(f.endswith(f"_{x}.jpg") for x in [0, 1, 2, 3])]
+        candidate_rgb = sorted([f for f in all_files if any(f.endswith(f"_{x}.JPG") for x in range(71))])
+        print(candidate_rgb[0])
 
-        self.bases = []
-        for rgb_name in candidate_rgb:
-            # base = rgb_name.replace(".jpg", "")
-            base = rgb_name
-            expected_files = {prefix + base for prefix in self.BAND_ORDER}
-            if expected_files.issubset(all_files):
-                self.bases.append(base)
-            else:
-                missing = expected_files - all_files
-                print(f"Warning: skipping {base}, missing files: {sorted(missing)}")
+        self.bases = candidate_rgb
 
         if not self.bases:
             raise RuntimeError(f"No complete samples found in '{root_dir}'.")
@@ -61,8 +52,9 @@ class DataCarrier(Dataset):
 
         # Load ms bands in correct order (G, R, RE, NIR)
         bands = []
-        for prefix in self.BAND_ORDER:
-            path = os.path.join(self.root_dir, prefix + base)
+
+        for suffix in self.BAND_ORDER:
+            path = os.path.join(self.root_dir, base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
             band = self._load_and_normalize(path)
             bands.append(band)
         target = np.stack(bands, axis=-1)
