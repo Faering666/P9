@@ -8,6 +8,11 @@ from torch.utils.data import random_split
 from mstpp.model import MST_Plus_Plus
 
 from torch.utils.tensorboard import SummaryWriter
+from PIL import Image
+import numpy as np
+
+
+from eval import run as eval_run
 
 
 class Opt():
@@ -297,6 +302,14 @@ class TransferLearning:
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 self.save("model_best.pkl", epoch)
+
+
+            # ======== Eval run ========
+            if (epoch + 1) % 10 == 0:
+                eval_run()
+                img = Image.open("validation_result.png")
+                img_array = np.array(img)
+                self.logWriter.add_image("Validation/Result", img_array, epoch, dataformats='HWC')
 
         print(f"[Done] Best val loss: {best_val_loss:.6f}")
 
