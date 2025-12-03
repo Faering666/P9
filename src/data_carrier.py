@@ -57,13 +57,15 @@ class DataCarrier(Dataset):
         for suffix in self.BAND_ORDER:
             path = os.path.join(self.root_dir, base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
             band = self._load_and_normalize(path)
+            # Take first channel if image is 3-channel (grayscale stored as RGB)
+            if band.ndim == 3:
+                band = band[:, :, 0]
             bands.append(band)
         target = np.stack(bands, axis=-1)
 
-        print(target.shape, rgb.shape)
         # Convert to torch tensors and rearrange to [C, H, W]
-        rgb = torch.from_numpy(rgb).float()
-        target = torch.from_numpy(target).float()
+        rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
+        target = torch.from_numpy(target).permute(2, 0, 1).float()
 
         return {"rgb": rgb, "ms": target}
 
