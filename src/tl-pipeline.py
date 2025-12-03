@@ -13,7 +13,7 @@ class Opt():
         self.ckp_path = None
         self.epochs = 100
         self.lr = None
-        self.batch_size = 1
+        self.batch_size = 16
         self.size = 256
         self.bands = 4
         # When True, instantiate a fresh MST_Plus_Plus and train from scratch
@@ -31,7 +31,15 @@ class Opt():
 
 class TransferLearning:
     def __init__(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Use CUDA, MPS (Mac GPU), or CPU in that order
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
+        print(f"[Device] Using device: {self.device}")
+
         self.model = None
         self.dataset = None
         self.criterion = None
@@ -205,9 +213,9 @@ class TransferLearning:
         total_loss = 0.0
         num_batches = 0
 
-        for batch_idx, (inputs, targets) in enumerate(dataloader):
-            inputs = inputs.to(self.device)
-            targets = targets.to(self.device)
+        for batch_idx, dict in enumerate(dataloader):
+            inputs = dict["rgb"].to(self.device)
+            targets = dict["ms"].to(self.device)
 
             # Forward pass
             self.optimiser.zero_grad()
@@ -242,9 +250,9 @@ class TransferLearning:
         num_batches = 0
 
         with torch.no_grad():
-            for inputs, targets in dataloader:
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
+            for dict in dataloader:
+                inputs = dict["rgb"].to(self.device)
+                targets = dict["ms"].to(self.device)
 
                 # Forward pass only
                 outputs = self.model(inputs)
