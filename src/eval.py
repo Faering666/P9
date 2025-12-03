@@ -15,12 +15,12 @@ class Opt:
         self.bands = 4
         self.size = 256
 
-def run():
+def run(model_path):
     opt = Opt()
     # model = SSRNetRGBTransfer(opt, device=device).to(device)
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
 
-    ckpt = torch.load("model_final.pkl", map_location=device)
+    ckpt = torch.load(model_path, map_location=device)
     state_dict = ckpt.get("state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
 
     model_sd = model.state_dict()
@@ -88,5 +88,5 @@ def run():
     print(f"Saved visualization to {out_path}")
 
 if __name__ == "__main__":
-    run()
+    run("model_best.pth")
     
