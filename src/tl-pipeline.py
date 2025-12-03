@@ -12,7 +12,7 @@ class Opt():
         self.ckp_path = None
         self.epochs = 100
         self.lr = None
-        self.batch_size = 1
+        self.batch_size = 16
         self.size = 256
         self.bands = 4
         # When True, instantiate a fresh MST_Plus_Plus and train from scratch
@@ -205,8 +205,8 @@ class TransferLearning:
         num_batches = 0
 
         for batch_idx, dict in enumerate(dataloader):
-            inputs = dict["rgb"]
-            targets = dict["ms"]
+            inputs = dict["rgb"].to(self.device)
+            targets = dict["ms"].to(self.device)
 
             # Forward pass
             self.optimiser.zero_grad()
