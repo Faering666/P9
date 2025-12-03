@@ -30,7 +30,15 @@ class Opt():
 
 class TransferLearning:
     def __init__(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Use CUDA, MPS (Mac GPU), or CPU in that order
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
+        print(f"[Device] Using device: {self.device}")
+
         self.model = None
         self.dataset = None
         self.criterion = None
@@ -241,9 +249,9 @@ class TransferLearning:
         num_batches = 0
 
         with torch.no_grad():
-            for inputs, targets in dataloader:
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
+            for dict in dataloader:
+                inputs = dict["rgb"].to(self.device)
+                targets = dict["ms"].to(self.device)
 
                 # Forward pass only
                 outputs = self.model(inputs)
