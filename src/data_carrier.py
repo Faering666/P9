@@ -48,7 +48,6 @@ class DataCarrier(Dataset):
         # Load rgb
         rgb_path = os.path.join(self.root_dir, base)
         rgb = self._load_and_normalize(rgb_path)
-        rgb = cv2.resize(rgb, (self.size, self.size))[:, :, ::-1].copy()
         rgb = rgb[:,:,::-1].copy() # bgr -> rgb
 
         # Load ms bands in correct order (G, R, RE, NIR)
@@ -68,11 +67,12 @@ class DataCarrier(Dataset):
         # Convert to torch tensors and rearrange to [C, H, W]
         rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
         target = torch.from_numpy(target).permute(2, 0, 1).float()
-        return rgb, target
+
+        return {"rgb": rgb, "ms": target}
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
-    dataset = DataCarrier(root_dir="data/")
+    dataset = DataCarrier(root_dir="../data/Multispectral Images on Paddy- Sri Lanka")
     print(len(dataset))
     rgb, ms = dataset[0]
     print("rgb patch shape:", rgb.shape)
