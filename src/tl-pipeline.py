@@ -356,7 +356,7 @@ class TransferLearning:
             
 
             # ======== Eval run ========
-            if (epoch + 1) % 10 == 0:
+            if (epoch + 1) % 5 == 0:
                 eval_run(best_model_path)
                 img = Image.open("validation_result.png")
                 img_array = np.array(img)
@@ -436,7 +436,7 @@ class TransferLearning:
                 self.save_model(save_dir, "stage3", epoch + 1)
 
             # ======== Eval run ========
-            if (epoch + 1) % 10 == 0:
+            if (epoch + 1) % 5 == 0:
                 eval_run(best_model_path)
                 img = Image.open("validation_result.png")
                 img_array = np.array(img)
