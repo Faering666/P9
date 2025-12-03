@@ -17,4 +17,6 @@ mst_runner = ModelRunner(
 )
 
 # out = mst_runner.infer_one("./imgs/picture.jpg", batch_id="mst", return_arrays=False)
-mst_runner.infer_many("C:/Users/tobia/Downloads/hyper-skin-data/Hyper-Skin(RGB, VIS)/**/*.jpg", glob_recursive=True, no_prefix=True)
+# mst_runner.infer_many("C:/Users/tobia/Downloads/hyper-skin-data/Hyper-Skin(RGB, VIS)/**/*.jpg", glob_recursive=True, no_prefix=True)
+# mst_runner.infer_many("C:/Users/tobia/Downloads/ARAD_1K_Mirror/Valid_RGB/**/*.jpg", batch_label="mst", batch_id="valid", glob_recursive=True, no_prefix=True)
+mst_runner.infer_many("C:/Users/tobia/Downloads/ARAD_1K_Mirror/Train_RGB/**/*.jpg", batch_label="mst", batch_id="train", glob_recursive=True, no_prefix=True)
