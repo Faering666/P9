@@ -204,9 +204,9 @@ class TransferLearning:
         total_loss = 0.0
         num_batches = 0
 
-        for batch_idx, (inputs, targets) in enumerate(dataloader):
-            inputs = inputs.to(self.device)
-            targets = targets.to(self.device)
+        for batch_idx, dict in enumerate(dataloader):
+            inputs = dict["rgb"]
+            targets = dict["ms"]
 
             # Forward pass
             self.optimiser.zero_grad()

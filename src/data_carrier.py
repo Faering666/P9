@@ -1,4 +1,5 @@
 import os
+from types import resolve_bases
 
 import torch
 from torch.utils.data import Dataset
@@ -58,15 +59,11 @@ class DataCarrier(Dataset):
             band = self._load_and_normalize(path)
             bands.append(band)
         target = np.stack(bands, axis=-1)
-        target = cv2.resize(target, (self.size, self.size)).copy()
 
-        # Ensure target has 3 dimensions [H, W, C]
-        if target.ndim == 2:
-            target = target[:, :, np.newaxis]
-
+        print(target.shape, rgb.shape)
         # Convert to torch tensors and rearrange to [C, H, W]
-        rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
-        target = torch.from_numpy(target).permute(2, 0, 1).float()
+        rgb = torch.from_numpy(rgb).float()
+        target = torch.from_numpy(target).float()
 
         return {"rgb": rgb, "ms": target}
 
