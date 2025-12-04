@@ -159,7 +159,7 @@ class ModelRunner:
         # ---- To numpy: CHW -> HWC ----
         cube_chw = y.squeeze(0).detach().cpu().numpy()     # (C,H,W)
         C, H, W = cube_chw.shape
-        cube_hwc = np.transpose(cube_chw, (1, 2, 0))       # (H,W,C)
+        cube_hwc = np.transpose(cube_chw, (2, 1, 0))       # (H,W,C)
         self._log(f"Cube (H,W,C)={cube_hwc.shape}; dtype={cube_hwc.dtype}")
         if C != 31:
             self._log("Note: band count != 31 (ok if your checkpoint differs).")
@@ -283,7 +283,7 @@ class ModelRunner:
                 outs.append(res)
                 self._log(" :: Done", True)
             except Exception as e:
-                self._log(f"[WARN] Skipping '{p}' due to error: {e}")
+                self._log(f"[WARN] Skipping '{p}' due to error: {e}", True)
             i += 1
         return outs
 
