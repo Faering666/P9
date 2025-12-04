@@ -15,11 +15,16 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, full=False):
         self.root_dir = root_dir
-
         all_files = set(os.listdir(root_dir))
-        rgb_paths = sorted([f for f in all_files if any(f.endswith(f"_{x}.JPG") for x in range(71))])
+        	
+        if not full:
+                rgb_paths = sorted([f for f in all_files if any(f.endswith(f"_{x}.JPG") for x in range(71))])
+
+        else:
+                rgb_paths = sorted([f for f in all_files if f.endswith("_D.JPG")])
+        breakpoint()
 
         self.bases = rgb_paths
         self.size = 256
@@ -71,7 +76,7 @@ class DataCarrier(Dataset):
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
-    dataset = DataCarrier(root_dir="../data/Multispectral Images on Paddy- Sri Lanka")
+    dataset = DataCarrier(root_dir="data/Multispectral-Sri-Lanka/", full=False)
     print(len(dataset))
     rgb, ms = dataset[0]
     print("rgb patch shape:", rgb.shape)
