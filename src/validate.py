@@ -192,6 +192,14 @@ class MetricCalculator:
         diff = ndvi_pred - ndvi_true
         return float(np.sqrt(np.mean(diff ** 2)))
         
+    def _ndvi_mean(self, cube: np.ndarray) -> float:
+        """
+        Mean NDVI over all pixels (and batch elements if present).
+        This is the scalar 'NDVI score'
+        """
+        ndvi = self._ndvi_map(cube)
+        return float(np.mean(ndvi))
+
     
 
     def compute_all(self, pred, target):
@@ -204,7 +212,9 @@ class MetricCalculator:
             "RMSE": self.rmse(pred, target),
             "MSE": self.mse(pred, target),
             "PSNR": self.psnr(pred, target),
-            "NDVI": self.ndvi_rmse(pred, target)
+            "NDVI_PRED": self._ndvi_mean(pred),
+            "NDVI_GT": self._ndvi_mean(target),
+            "NDVI_RMSE": self.ndvi_rmse(pred, target)
         }
 
 class DirectoryMetricEvaluator:
@@ -320,6 +330,9 @@ class DirectoryMetricEvaluator:
                 "RMSE": float,
                 "MSE": float,
                 "PSNR": float
+                "NDVI_PRED": float
+                "NDVI_GT": float
+                "NDVI_RMSE": float
             }
         """
         result_files = self._scan_dir_for_extension(self.result_path, self.pred_ext)
@@ -341,8 +354,6 @@ class DirectoryMetricEvaluator:
             raise RuntimeError(
                 "No common basenames found between prediction and GT directories."
             )
-
-        gt_map = {d["name"]: d[self.gt_ext] for d in correct_files}
 
         per_file_scores: list[dict] = []
 
@@ -388,14 +399,11 @@ class DirectoryMetricEvaluator:
             agg[metric_name] = float(
                 np.mean([r[metric_name] for r in per_file_scores])
             )
-        print("\n=== Aggregate metrics (freshly computed) ===")
-        for k, v in agg.items():
-            print(f"{k}: {v:.6f}")
 
         if results_file is not None:
             with open(results_file, "w", encoding="utf-8") as f:
                 json.dump(per_file_scores, f, indent=2)
-            print(f"\nPer-file scores written to: {results_file}")
+            print(f"\nScores written to: {results_file}")
 
         return agg
 
@@ -407,10 +415,6 @@ class DirectoryMetricEvaluator:
         Args:
             results_file: path to JSON file with per-file scores.
             verbose:      if True, print aggregate metrics.
-
-        Returns:
-            dict with aggregate metrics:
-                {"MRAE": float, "RMSE": float, "MSE": float, "PSNR": float}
         """
         with open(results_file, "r", encoding="utf-8") as f:
             per_file_scores = json.load(f)
@@ -449,7 +453,9 @@ if __name__ == "__main__":
     print("RMSE:", scores["RMSE"])
     print("MSE: ", scores["MSE"])
     print("PSNR:", scores["PSNR"])
-    print("NDVI:", scores["NDVI"])
+    print("NDVI_PRED:", scores["NDVI_PRED"])
+    print("NDVI_GT:", scores["NDVI_GT"])
+    print("NDVI_RMSE:", scores["NDVI_RMSE"])
     
     # print("=========================")
     # scores = evaluator.evaluate_from_file(results_file)
@@ -457,4 +463,6 @@ if __name__ == "__main__":
     # print("RMSE:", scores["RMSE"])
     # print("MSE: ", scores["MSE"])
     # print("PSNR:", scores["PSNR"])
-    # print("NDVI:", scores["NDVI"])
+    # print("NDVI_PRED:", scores["NDVI_PRED"])
+    # print("NDVI_GT:", scores["NDVI_GT"])
+    # print("NDVI_RMSE:", scores["NDVI_RMSE"])
