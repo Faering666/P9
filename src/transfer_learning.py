@@ -336,7 +336,7 @@ if __name__ == "__main__":
     transfer_learning = TransferLearning()
     transfer_learning.options.train_from_scratch = False
     transfer_learning.load_model()
-    transfer_learning.load_dataset(root_dir="data/Multispectral Images on Paddy- Sri Lanka")
+    transfer_learning.load_dataset(root_dir="data/MS_Sri_Lanka")
     transfer_learning.loss_function()
     transfer_learning.optimizer_function()
     transfer_learning.train()
