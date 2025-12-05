@@ -2,10 +2,10 @@ import sys
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-# from ssr.rgb_transfer import SSRNetRGBTransfer 
 from mstpp.model import MST_Plus_Plus
 from data_carrier import DataCarrier
 import os
+import argparse
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -17,7 +17,6 @@ class Opt:
 
 def run():
     opt = Opt()
-    # model = SSRNetRGBTransfer(opt, device=device).to(device)
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
 
     ckpt = torch.load("model_final.pkl", map_location=device)
@@ -88,5 +87,27 @@ def run():
     print(f"Saved visualization to {out_path}")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
+    parser.add_argument("--data_path", default="data")
+    parser.add_argument("--single", default=False)
+    parser.add_argument("--jpg", default=None)
+    parser.add_argument("--amount", default="Full")
+    parser.add_argument("--save_path", default="default")
+    args = parser.parse_args()
+    root_dir = args.data_path
+    save_dir = args.save_path
+    single = args.single
+    if single:
+        single_picture = args.jpg #Only one picture
+    else:
+        amount = args.amount
+        if amount == "Full":
+            #Take the full list of pictures from dir
+            print(amount)
+        else:
+            #Take the first x amount of picture
+            print(amount)
+
+    breakpoint()
     run()
     
