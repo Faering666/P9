@@ -6,6 +6,7 @@ from mstpp.model import MST_Plus_Plus
 from data_carrier import DataCarrier
 import os
 import argparse
+from pathlib import Path
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -15,9 +16,11 @@ class Opt:
         self.bands = 4
         self.size = 256
 
-def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath, full_picture)
+def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath, full_picture):
     opt = Opt()
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
+    ouput_dir= Path(save_dir)
+    ouput_dir.mkdir(parents=True, exist_ok=True)
 
     ckpt = torch.load(modelpath, map_location=device)
     state_dict = ckpt.get("state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
@@ -40,12 +43,7 @@ def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath
     model.load_state_dict(filtered, strict=False)
     model.eval()
 
-    def create_dummy_mask(batch_size, bands, H, W, device):
-        Phi = torch.ones(batch_size, bands, H, W, device=device) 
-        PhiPhiT = torch.ones(batch_size, 1, H, W, device=device)
-        return (Phi, PhiPhiT)
-
-    dataset = DataCarrier(root_dir=root_dir, single_picture=single, full_or_patch=full_picture)
+    dataset = DataCarrier(root_dir=root_dir, single_picture=single, full_or_patch=full_picture) #Expect data carrier to handle single or multiple pictures
 
     index = 0
 
@@ -90,23 +88,23 @@ def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath
 
         axes[1, 4].axis("off")
         plt.tight_layout()
-        out_path = "validation_result.png"
-        plt.savefig(out_path, dpi=150, bbox_inches="tight")
-        plt.savefig(save_dir+outpath+index, dpi=150, bbox_inces="tight")
+        file_name = "validation_result"+index+".png"
+        plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
+        plt.savefig(ouput_dir / file_name, dpi=150, bbox_inces="tight")
         plt.close()
-        print(f"Saved visualization to {out_path}")
+        print(f"Saved visualization to {file_name}")
         index += 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
-    parser.add_argument("--data_path", default="data/")
-    parser.add_argument("--single", default=False)
-    parser.add_argument("--jpg", default=None)
-    parser.add_argument("--full_picture", default=False)
-    parser.add_argument("--amount", default="Full")
-    parser.add_argument("--save_path", default="default")
-    parser.add_argument("--data_type", default="Sri-Lanka")
-    parser.add_argument("--model", default="model_final.pkl")
+    parser.add_argument("--data_path", help="Path to directory with data, default=data/", default="data/")
+    parser.add_argument("--single", type=bool, help="One or many pictures, default=many", default=False)
+    parser.add_argument("--jpg", help="path to single picture, only applies if --single=True", default=None)
+    parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
+    parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
+    parser.add_argument("--save_path", help="Name of save directory", default="default")
+    parser.add_argument("--data_type", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", default="model_final.pkl")
     args = parser.parse_args()
     root_dir = args.data_path # Root directory of data (data/)
     data_type = args.data_type #Dataset type (Sri-Lanka or Kazakhstan)
