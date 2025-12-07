@@ -60,7 +60,6 @@ def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath
     
         rgb_vis = rgb.unsqueeze(0).permute(0, 2, 3, 1).squeeze(0).cpu().numpy()
         rgb = rgb.unsqueeze(0).to(device)             
-        dummy_mask = create_dummy_mask(rgb.size(0), opt.bands, rgb.size(2), rgb.size(3), device)
 
         with torch.no_grad():
             output = model(rgb)
