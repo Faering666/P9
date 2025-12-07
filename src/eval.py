@@ -15,11 +15,11 @@ class Opt:
         self.bands = 4
         self.size = 256
 
-def run():
+def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath, full_picture)
     opt = Opt()
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
 
-    ckpt = torch.load("model_final.pkl", map_location=device)
+    ckpt = torch.load(modelpath, map_location=device)
     state_dict = ckpt.get("state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
 
     model_sd = model.state_dict()
@@ -45,69 +45,76 @@ def run():
         PhiPhiT = torch.ones(batch_size, 1, H, W, device=device)
         return (Phi, PhiPhiT)
 
-    dataset = DataCarrier(root_dir="data/")
+    dataset = DataCarrier(root_dir=root_dir, single_picture=single, full_or_patch=full_picture)
 
-    sample = dataset[2]
-    rgb = sample["rgb"] 
-    target = sample["ms"]
+    index = 0
 
-    rgb_vis = rgb.unsqueeze(0).permute(0, 2, 3, 1).squeeze(0).cpu().numpy()
-    rgb = rgb.unsqueeze(0).to(device)             
-    dummy_mask = create_dummy_mask(rgb.size(0), opt.bands, rgb.size(2), rgb.size(3), device)
+    if single:
+        limit = 1
+    elif amount == "Full":
+        limit = None
+    else:
+        limit = int(amount)
 
-    with torch.no_grad():
-        output = model(rgb)
-        if isinstance(output, list): 
-            output = output[-1]
-        pred = output.squeeze(0).cpu().numpy()
+    for sample in dataset[0:limit]:
+        rgb = sample["rgb"] 
+        target = sample["ms"]
+    
+        rgb_vis = rgb.unsqueeze(0).permute(0, 2, 3, 1).squeeze(0).cpu().numpy()
+        rgb = rgb.unsqueeze(0).to(device)             
+        dummy_mask = create_dummy_mask(rgb.size(0), opt.bands, rgb.size(2), rgb.size(3), device)
 
-    pred = np.clip(pred, 0, 1)
-    target = target.numpy()
+        with torch.no_grad():
+            output = model(rgb)
+            if isinstance(output, list): 
+                output = output[-1]
+            pred = output.squeeze(0).cpu().numpy()
 
-    fig, axes = plt.subplots(2, 5, figsize=(14, 5))
-    axes[0, 0].imshow(rgb_vis)
-    axes[0, 0].set_title("RGB Input")
-    axes[0, 0].axis("off")
+        pred = np.clip(pred, 0, 1)
+        target = target.numpy()
 
-    for i in range(4):
-        axes[0, i+1].imshow(target[i], cmap='gray')
-        axes[0, i+1].set_title(f"GT Band {i+1}")
-        axes[0, i+1].axis("off")
+        fig, axes = plt.subplots(2, 5, figsize=(14, 5))
+        axes[0, 0].imshow(rgb_vis)
+        axes[0, 0].set_title("RGB Input")
+        axes[0, 0].axis("off")
 
-    for i in range(4):
-        axes[1, i].imshow(pred[i], cmap='gray')
-        axes[1, i].set_title(f"Pred Band {i+1}")
-        axes[1, i].axis("off")
+        for i in range(4):
+            axes[0, i+1].imshow(target[i], cmap='gray')
+            axes[0, i+1].set_title(f"GT Band {i+1}")
+            axes[0, i+1].axis("off")
 
-    axes[1, 4].axis("off")
-    plt.tight_layout()
-    out_path = "validation_result.png"
-    plt.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close()
-    print(f"Saved visualization to {out_path}")
+        for i in range(4):
+            axes[1, i].imshow(pred[i], cmap='gray')
+            axes[1, i].set_title(f"Pred Band {i+1}")
+            axes[1, i].axis("off")
+
+        axes[1, 4].axis("off")
+        plt.tight_layout()
+        out_path = "validation_result.png"
+        plt.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.savefig(save_dir+outpath+index, dpi=150, bbox_inces="tight")
+        plt.close()
+        print(f"Saved visualization to {out_path}")
+        index += 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
-    parser.add_argument("--data_path", default="data")
+    parser.add_argument("--data_path", default="data/")
     parser.add_argument("--single", default=False)
     parser.add_argument("--jpg", default=None)
+    parser.add_argument("--full_picture", default=False)
     parser.add_argument("--amount", default="Full")
     parser.add_argument("--save_path", default="default")
+    parser.add_argument("--data_type", default="Sri-Lanka")
+    parser.add_argument("--model", default="model_final.pkl")
     args = parser.parse_args()
-    root_dir = args.data_path
-    save_dir = args.save_path
-    single = args.single
-    if single:
-        single_picture = args.jpg #Only one picture
-    else:
-        amount = args.amount
-        if amount == "Full":
-            #Take the full list of pictures from dir
-            print(amount)
-        else:
-            #Take the first x amount of picture
-            print(amount)
-
-    breakpoint()
-    run()
+    root_dir = args.data_path # Root directory of data (data/)
+    data_type = args.data_type #Dataset type (Sri-Lanka or Kazakhstan)
+    save_dir = args.save_path #Save path for results (also saves latest result in validation_result.png in main folder)
+    single = args.single # One or many pictures
+    single_picture = args.jpg #Only one picture
+    amount = args.amount #If not single, gives the amount of pictures to process
+    modelpath = args.model #MST++ model to evaluate
+    full_picture = args.full_picture #Patches or full picture
+    run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath, full_picture)
     
