@@ -43,7 +43,7 @@ def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath
     model.load_state_dict(filtered, strict=False)
     model.eval()
 
-    dataset = DataCarrier(root_dir=root_dir, single_picture=single, full_or_patch=full_picture) #Expect data carrier to handle single or multiple pictures
+    dataset = DataCarrier(root_dir=root_dir, single=single, single_picture=single_picture, full_or_patch=full_picture) #Expect data carrier to handle single or multiple pictures
 
     index = 0
 
