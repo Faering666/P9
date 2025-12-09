@@ -39,8 +39,10 @@ class DataCarrier(Dataset):
         if load_data.__name__ == "load_single_picture":
             if data_type == "Sri-Lanka":
                 self.is_east_kaz = False
+                self.root_dir = self.root_dir.parent
             else:
                 self.is_east_kaz = True
+                self.root_dir = self.root_dir.parent
         elif load_data.__name__ == "load_east_kaz":
             self.is_east_kaz = True
         else:
@@ -74,7 +76,7 @@ class DataCarrier(Dataset):
         bands = []
         if not self.is_east_kaz:
             for suffix in self.BAND_ORDER:
-                path = os.path.join(self.root_dir, base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
+                path = os.path.join(base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
                 band = self._load_and_normalize(path)
                 # Take first channel if image is 3-channel (grayscale stored as RGB)
                 if band.ndim == 3:
