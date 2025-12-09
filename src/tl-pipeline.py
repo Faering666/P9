@@ -5,6 +5,9 @@ from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
 from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, DataCarrier
+from PIL import Image
+import numpy as np
+
 
 import os
 from pathlib import Path
@@ -351,6 +354,18 @@ class TransferLearning:
             if (epoch + 1) % save_every == 0:
                 self.save_model(save_dir, "stage2", epoch + 1)
 
+
+            # ======== Eval run ========
+            if (epoch + 1) % 5 == 0:
+                eval_run(best_model_path)
+                img = Image.open("validation_result.png")
+                img_array = np.array(img)
+                self.logWriter.add_image("Validation/Result", img_array, epoch, dataformats='HWC')
+
+
+
+
+
         # Save final model
         final_path = self.save_model(save_dir, "stage2")
 
@@ -419,6 +434,15 @@ class TransferLearning:
             # Save checkpoint periodically
             if (epoch + 1) % save_every == 0:
                 self.save_model(save_dir, "stage3", epoch + 1)
+
+            # ======== Eval run ========
+            if (epoch + 1) % 5 == 0:
+                eval_run(best_model_path)
+                img = Image.open("validation_result.png")
+                img_array = np.array(img)
+                self.logWriter.add_image("Validation/Result", img_array, epoch, dataformats='HWC')
+
+
 
         # Save final model
         final_path = self.save_model(save_dir, "stage3")
