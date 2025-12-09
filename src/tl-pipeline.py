@@ -4,6 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
+from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, DataCarrier
 from PIL import Image
 import numpy as np
 
@@ -267,9 +268,8 @@ class TransferLearning:
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
 
-    def load_dataset(self, root_dir):
-        from data_carrier import DataCarrier
-        self.dataset = DataCarrier(root_dir)
+    def load_dataset(self, root_dir, loader):
+        self.dataset = DataCarrier(root_dir, loader)
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
 
@@ -353,7 +353,7 @@ class TransferLearning:
             # Save checkpoint periodically
             if (epoch + 1) % save_every == 0:
                 self.save_model(save_dir, "stage2", epoch + 1)
-            
+
 
             # ======== Eval run ========
             if (epoch + 1) % 5 == 0:
@@ -456,22 +456,23 @@ class TransferLearning:
 
         return best_model_path if best_model_path else final_path
 
-    def run_full_pipeline(self, train_dataloader, stage2_epochs, stage3_epochs,
-                          val_dataloader=None, stage2_lr=1e-5, stage3_lr=1e-7, save_dir="checkpoints"):
+    def run_full_pipeline(self, stage2_data_path, stage2_epochs, stage3_epochs,
+                          stage3_data_path, stage2_lr=1e-5, stage3_lr=1e-7, save_dir="checkpoints"):
         """
         Run the complete 3-stage transfer learning pipeline.
 
         Args:
-            train_dataloader: DataLoader for training data
+            stage2_data_path: Path for stage 2 dataset
+            stage3_data_path: Path for stage 3 dataset
             stage2_epochs: Number of epochs for stage 2
             stage3_epochs: Number of epochs for stage 3
-            val_dataloader: Optional DataLoader for validation data
             stage2_lr: Learning rate for stage 2 (default: 1e-5)
             stage3_lr: Learning rate for stage 3 (default: 1e-7)
             save_dir: Directory to save all checkpoints
 
         Returns:
             Dictionary with paths to all saved models
+
         """
         print("\n" + "="*70)
         print(" STAGED TRANSFER LEARNING PIPELINE")
@@ -483,12 +484,35 @@ class TransferLearning:
         results['stage1'] = self.run_stage_1(save_dir)
 
         # Stage 2: Decoder training
+        tl.load_dataset(stage2_data_path, loader=load_east_kaz)
+
+        total_len = len(tl.dataset)
+        val_len = max(1, int(0.1 * total_len))
+        train_len = total_len - val_len
+        train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
+
+        # Prepare your dataloaders
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+
+
         results['stage2'] = self.run_stage_2(
             train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
             learning_rate=stage2_lr, save_dir=save_dir
         )
 
         # Stage 3: Full fine-tuning
+        tl.load_dataset(stage3_data_path, load_sri_lanka_patch)
+
+        total_len = len(tl.dataset)
+        val_len = max(1, int(0.1 * total_len))
+        train_len = total_len - val_len
+        train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
+
+        # Prepare your dataloaders
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+
         results['stage3'] = self.run_stage_3(
             train_dataloader, stage3_epochs, val_dataloader=val_dataloader,
             learning_rate=stage3_lr, save_dir=save_dir
@@ -507,10 +531,14 @@ class TransferLearning:
 # Usage example
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
-    parser.add_argument("--data_path", default="data")
+    parser = argparse.ArgumentParser(description="Get data paths.")
+    parser.add_argument("--data_path2", default="data/")
+    parser.add_argument("--data_path3", default="data/")
+
     args = parser.parse_args()
-    root_dir = args.data_path
+    stage2_data_path = args.data_path2
+    stage3_data_path = args.data_path3
+
 
     # Initialize the transfer learning pipeline
     tl = TransferLearning()
@@ -521,27 +549,16 @@ if __name__ == "__main__":
     tl.options.bands = 4
     tl.options.n_feat = 4
     tl.options.stage = 3
-    tl.load_dataset(root_dir)
     # Setup criterion
     tl.criterion = torch.nn.L1Loss()
 
     # Load the model (Stage 1)
-    tl.load_model()       
-
-    # Split dataset into 90% train / 10% val
-    total_len = len(tl.dataset)
-    val_len = max(1, int(0.1 * total_len))
-    train_len = total_len - val_len
-    train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
-    
-    # Prepare your dataloaders
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+    tl.load_model()
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
-        train_dataloader=train_dataloader,
-        val_dataloader=val_dataloader,  # Optional: will save best model when val_loss improves
+        stage2_data_path=stage2_data_path,
+        stage3_data_path=stage3_data_path,
         stage2_epochs=50,      # Train decoder for 50 epochs
         stage3_epochs=30,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
