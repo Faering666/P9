@@ -7,6 +7,8 @@ from data_carrier import DataCarrier
 import os
 import argparse
 from pathlib import Path
+from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, DataCarrier
+
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -42,7 +44,16 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
 
     model.load_state_dict(filtered, strict=False)
     model.eval()
-
+    
+    if single:
+        dataset = DataCarrier(root_dir=(root_dir + single_picture), load_single_picture,data_type=data_type)
+    elif data_type="Kazakhstan":
+        dataset = DataCarrier(root_dir=root_dir, load_east_kaz)
+    elif full_picture:
+        dataset = DataCarrier(root_dir=root_dir, load_sri_lanka_full)
+    else:
+        dataset = DataCarrier(root_dir=root_dir, load_sri_lanka_patch)
+    
     dataset = DataCarrier(root_dir=root_dir, single=single, single_picture=single_picture, full_or_patch=full_picture) #Expect data carrier to handle single or multiple pictures
 
     index = 0

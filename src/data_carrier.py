@@ -33,10 +33,15 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type: str):
+    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type="Sri-Lanka"):
         self.root_dir = Path(root_dir)
         self.bases = load_data(self.root_dir)
-        if data_type == "Kazakhstan":
+        if load_data.__name__ == "load_single_picture":
+            if data_type == "Sri-Lanka":
+                self.is_east_kaz = False
+            else:
+                self.is_east_kaz = True
+        elif load_data.__name__ == "load_east_kaz":
             self.is_east_kaz = True
         else:
             self.is_east_kaz = False
