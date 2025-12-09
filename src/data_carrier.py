@@ -19,7 +19,7 @@ def load_east_kaz (root_dir: Path) -> list[Path]:
     rgb_paths = sorted([f for f in root_dir.rglob("*.JPG") if f.is_file()])
     return rgb_paths
 
-def load_single_picture (root_dir: Path) -> list[Path]:
+def load_single_picture (root_dir: Path) -> list[Path]: 
     rgb_paths = [root_dir]
     return rgb_paths
 
