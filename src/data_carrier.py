@@ -19,6 +19,10 @@ def load_east_kaz (root_dir: Path) -> list[Path]:
     rgb_paths = sorted([f for f in root_dir.rglob("*.JPG") if f.is_file()])
     return rgb_paths
 
+def load_single_picture (root_dir: Path) -> list[Path]:
+    rgb_paths = [root_dir]
+    return rgb_paths
+
 
 class DataCarrier(Dataset):
     """
@@ -29,11 +33,10 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir: str,
-                 load_data: Callable[[Path], list[Path]]):
+    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type: str):
         self.root_dir = Path(root_dir)
         self.bases = load_data(self.root_dir)
-        if load_data.__name__ == "load_east_kaz":
+        if data_type == "Kazakhstan":
             self.is_east_kaz = True
         else:
             self.is_east_kaz = False
