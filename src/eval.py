@@ -16,13 +16,13 @@ class Opt:
         self.bands = 4
         self.size = 256
 
-def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath, full_picture):
+def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=False, single_picture=None, amount="Full", model_path="model_final.pkl", full_picture=False):
     opt = Opt()
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
     ouput_dir= Path(save_dir)
     ouput_dir.mkdir(parents=True, exist_ok=True)
 
-    ckpt = torch.load(modelpath, map_location=device)
+    ckpt = torch.load(model_path, map_location=device)
     state_dict = ckpt.get("state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
 
     model_sd = model.state_dict()
@@ -32,7 +32,7 @@ def run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath
         if key.startswith("module."):
             key = key[len("module."):]
             
-        if key in model_sd and v.size() == model_sd[key].size():
+        if key in model_sd and v.size() == model_sd[key].size
             filtered[key] = v
 
     missing = set(model_sd.keys()) - set(filtered.keys())
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     parser.add_argument("--jpg", help="path to single picture, only applies if --single=True", default=None)
     parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
-    parser.add_argument("--save_path", help="Name of save directory", default="default")
+    parser.add_argument("--save_path", help="Name of save directory", default="results")
     parser.add_argument("--data_type", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Sri-Lanka")
     parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", default="model_final.pkl")
     args = parser.parse_args()
@@ -113,5 +113,5 @@ if __name__ == "__main__":
     amount = args.amount #If not single, gives the amount of pictures to process
     modelpath = args.model #MST++ model to evaluate
     full_picture = args.full_picture #Patches or full picture
-    run(root_dir, data_type, save_dir, single, single_picture, amount, modelpath, full_picture)
+    run(root_dir=root_dir, data_type=data_type, save_dir=save_dir, single=single, single_picture=single_picture, amount=amount, model_path=model_path, full_picture=full_picture)
     
