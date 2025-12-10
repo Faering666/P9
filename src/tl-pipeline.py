@@ -216,6 +216,10 @@ class TransferLearning:
         self.model.train()
         total_loss = 0.0
         num_batches = 0
+        
+        accumulation_steps = 4
+
+        self.optimiser.zero_grad()
 
         for batch_idx, dict in enumerate(dataloader):
             inputs = dict["rgb"].to(self.device)
@@ -224,11 +228,14 @@ class TransferLearning:
             # Forward pass
             self.optimiser.zero_grad()
             outputs = self.model(inputs)
-            loss = self.criterion(outputs, targets)
+            loss = self.criterion(outputs, targets) / accumulation_steps
 
-            # Backward pass
             loss.backward()
-            self.optimiser.step()
+            
+            # Backward pass
+            if (i + 1) % accumulation_steps
+                self.optimiser.step()
+                self.optimiser.zero_grad()
 
             total_loss += loss.item()
             num_batches += 1
