@@ -4,7 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
-from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, DataCarrier
+from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, DataCarrier
 from PIL import Image
 import numpy as np
 
@@ -456,8 +456,10 @@ class TransferLearning:
 
         return best_model_path if best_model_path else final_path
 
-    def run_full_pipeline(self, stage2_data_path, stage2_epochs, stage3_epochs,
-                          stage3_data_path, stage2_lr=1e-5, stage3_lr=1e-7, save_dir="checkpoints"):
+    def run_full_pipeline(self, 
+                          stage2_data_path, stage2_data_type, stage2_epochs, stage2_full_picture,
+                          stage3_data_path, stage3_data_type, stage3_epochs, stage3_full_picture,
+                          stage2_lr=1e-5, stage3_lr=1e-7, save_dir="checkpoints"):
         """
         Run the complete 3-stage transfer learning pipeline.
 
@@ -484,7 +486,26 @@ class TransferLearning:
         results['stage1'] = self.run_stage_1(save_dir)
         torch.cuda.empty_cache()
         # Stage 2: Decoder training
-        tl.load_dataset(stage2_data_path, loader=load_east_kaz)
+        match stage2_data_type:
+            case "Sri-Lanka":
+                if stage2_full_picture:
+                    loader =  load_sri_lanka_full
+                else:
+                    loader = load_sri_lanka_patch
+            case "Kazakhstan":
+                if stage2_full_picture:
+                    loader = load_east_kaz
+                else:
+                    loader = load_east_kaz # East Kazakhstan dataset does not have patches
+            case "Weedy-Rice":
+                if stage2_full_picture:
+                    loader = load_weedy_rice
+                else:
+                    loader = load_weedy_rice # Weedy Rice dataset does not have patches
+            case _:
+                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                breakpoint() #Dummefejl
+        tl.load_dataset(stage2_data_path, loader=loader)
 
         total_len = len(tl.dataset)
         val_len = max(1, int(0.1 * total_len))
@@ -502,7 +523,26 @@ class TransferLearning:
         )
 
         # Stage 3: Full fine-tuning
-        tl.load_dataset(stage3_data_path, load_sri_lanka_patch)
+        match stage3_data_type:
+            case "Sri-Lanka":
+                if stage3_full_picture:
+                    loader =  load_sri_lanka_full
+                else:
+                    loader = load_sri_lanka_patch
+            case "Kazakhstan":
+                if stage3_full_picture:
+                    loader = load_east_kaz
+                else:
+                    loader = load_east_kaz # East Kazakhstan dataset does not have patches
+            case "Weedy-Rice":
+                if stage3_full_picture:
+                    loader = load_weedy_rice
+                else:
+                    loader = load_weedy_rice # Weedy Rice dataset does not have patches
+            case _:
+                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                breakpoint() #Dummefejl
+        tl.load_dataset(stage3_data_path, loader=loader)
 
         total_len = len(tl.dataset)
         val_len = max(1, int(0.1 * total_len))
@@ -533,11 +573,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get data paths.")
     parser.add_argument("--data_path2", default="data/")
+    parser.add_argument("--data_type2", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Kazakhstan")
+    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--data_path3", default="data/")
+    parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
 
     args = parser.parse_args()
     stage2_data_path = args.data_path2
+    stage2_data_type = args.data_type2
+    stage2_full_picture = args.full_picture2
     stage3_data_path = args.data_path3
+    stage3_data_type = args.data_type3
+    stage3_full_picture = args.full_picture3
+    
 
 
     # Initialize the transfer learning pipeline
@@ -558,7 +607,11 @@ if __name__ == "__main__":
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
         stage2_data_path=stage2_data_path,
+        stage2_data_type=stage2_data_type,
+        stage2_full_picture=stage2_full_picture,
         stage3_data_path=stage3_data_path,
+        stage3_data_type=stage3_data_type,
+        stage3_full_picture=stage3_full_picture,
         stage2_epochs=50,      # Train decoder for 50 epochs
         stage3_epochs=30,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
