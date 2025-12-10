@@ -1,29 +1,33 @@
-import sys
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from mstpp.model import MST_Plus_Plus
 from data_carrier import DataCarrier
-import os
+from torch.utils.data import DataLoader
 import argparse
 from pathlib import Path
+from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, DataCarrier
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-class Opt:
-    def __init__(self):
-        self.stage = 3
-        self.bands = 4
-        self.size = 256
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu" # Recommended when running full pictures to avoid OOM errors
 
 def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=False, single_picture=None, amount="Full", model_path="model_final.pkl", full_picture=False):
-    opt = Opt()
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
     ouput_dir= Path(save_dir)
     ouput_dir.mkdir(parents=True, exist_ok=True)
 
     ckpt = torch.load(model_path, map_location=device)
-    state_dict = ckpt.get("state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
+    # Handle different checkpoint formats
+    if isinstance(ckpt, dict):
+        if "model_state_dict" in ckpt:
+            state_dict = ckpt["model_state_dict"]
+        elif "state_dict" in ckpt:
+            state_dict = ckpt["state_dict"]
+        else:
+            state_dict = ckpt
+    else:
+        state_dict = ckpt
 
     model_sd = model.state_dict()
     filtered = {}
@@ -32,7 +36,7 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
         if key.startswith("module."):
             key = key[len("module."):]
             
-        if key in model_sd and v.size() == model_sd[key].size
+        if key in model_sd and v.size() == model_sd[key].size():
             filtered[key] = v
 
     missing = set(model_sd.keys()) - set(filtered.keys())
@@ -42,24 +46,33 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
 
     model.load_state_dict(filtered, strict=False)
     model.eval()
-
-    dataset = DataCarrier(root_dir=root_dir, single=single, single_picture=single_picture, full_or_patch=full_picture) #Expect data carrier to handle single or multiple pictures
-
+    
+    if single:
+        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type)
+    elif data_type == "Kazakhstan":
+        dataset = DataCarrier(root_dir, load_east_kaz)
+    elif full_picture:
+        dataset = DataCarrier(root_dir, load_sri_lanka_full)
+    else:
+        dataset = DataCarrier(root_dir, load_sri_lanka_patch)
+    
     index = 0
 
-    if single:
-        limit = 1
-    elif amount == "Full":
+    dataset = DataLoader(dataset, batch_size=1, shuffle=False)
+    if amount == "Full":
         limit = None
     else:
         limit = int(amount)
 
-    for sample in dataset[0:limit]:
+    for sample in dataset:
+        if limit is not None and index >= limit:
+            break
         rgb = sample["rgb"] 
         target = sample["ms"]
     
-        rgb_vis = rgb.unsqueeze(0).permute(0, 2, 3, 1).squeeze(0).cpu().numpy()
-        rgb = rgb.unsqueeze(0).to(device)             
+        rgb_vis = rgb.permute(0, 2, 3, 1).cpu().numpy().squeeze(0)
+        target = target.squeeze(0).cpu().numpy() if target.dim() == 4 else target.cpu().numpy()
+        rgb = rgb.to(device)             
 
         with torch.no_grad():
             output = model(rgb)
@@ -68,7 +81,6 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
             pred = output.squeeze(0).cpu().numpy()
 
         pred = np.clip(pred, 0, 1)
-        target = target.numpy()
 
         fig, axes = plt.subplots(2, 5, figsize=(14, 5))
         axes[0, 0].imshow(rgb_vis)
@@ -87,9 +99,9 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
 
         axes[1, 4].axis("off")
         plt.tight_layout()
-        file_name = "validation_result"+index+".png"
+        file_name = "validation_result_" + str(index) + ".png"
         plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
-        plt.savefig(ouput_dir / file_name, dpi=150, bbox_inces="tight")
+        plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"Saved visualization to {file_name}")
         index += 1
@@ -98,7 +110,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
     parser.add_argument("--data_path", help="Path to directory with data, default=data/", default="data/")
     parser.add_argument("--single", type=bool, help="One or many pictures, default=many", default=False)
-    parser.add_argument("--jpg", help="path to single picture, only applies if --single=True", default=None)
+    parser.add_argument("--jpg", help="path to single picture", default=None)
     parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
     parser.add_argument("--save_path", help="Name of save directory", default="results")
@@ -111,7 +123,7 @@ if __name__ == "__main__":
     single = args.single # One or many pictures
     single_picture = args.jpg #Only one picture
     amount = args.amount #If not single, gives the amount of pictures to process
-    modelpath = args.model #MST++ model to evaluate
+    model_path = args.model #MST++ model to evaluate
     full_picture = args.full_picture #Patches or full picture
     run(root_dir=root_dir, data_type=data_type, save_dir=save_dir, single=single, single_picture=single_picture, amount=amount, model_path=model_path, full_picture=full_picture)
     

@@ -19,7 +19,7 @@ def load_east_kaz (root_dir: Path) -> list[Path]:
     rgb_paths = sorted([f for f in root_dir.rglob("*.JPG") if f.is_file()])
     return rgb_paths
 
-def load_single_picture (root_dir: Path) -> list[Path]:
+def load_single_picture (root_dir: Path) -> list[Path]: 
     rgb_paths = [root_dir]
     return rgb_paths
 
@@ -33,10 +33,17 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type: str):
+    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type="Sri-Lanka"):
         self.root_dir = Path(root_dir)
         self.bases = load_data(self.root_dir)
-        if data_type == "Kazakhstan":
+        if load_data.__name__ == "load_single_picture":
+            if data_type == "Sri-Lanka":
+                self.is_east_kaz = False
+                self.root_dir = self.root_dir.parent
+            else:
+                self.is_east_kaz = True
+                self.root_dir = self.root_dir.parent
+        elif load_data.__name__ == "load_east_kaz":
             self.is_east_kaz = True
         else:
             self.is_east_kaz = False
@@ -69,7 +76,7 @@ class DataCarrier(Dataset):
         bands = []
         if not self.is_east_kaz:
             for suffix in self.BAND_ORDER:
-                path = os.path.join(self.root_dir, base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
+                path = os.path.join(base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
                 band = self._load_and_normalize(path)
                 # Take first channel if image is 3-channel (grayscale stored as RGB)
                 if band.ndim == 3:
