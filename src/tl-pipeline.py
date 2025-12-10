@@ -233,7 +233,7 @@ class TransferLearning:
             total_loss += loss.item()
             num_batches += 1
 
-            if (batch_idx + 1) % 10 == 0:
+            #if (batch_idx + 1) % 10 == 0:
                 # print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
