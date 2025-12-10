@@ -234,7 +234,7 @@ class TransferLearning:
             num_batches += 1
 
             if (batch_idx + 1) % 10 == 0:
-                print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
+                # print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
@@ -482,7 +482,7 @@ class TransferLearning:
 
         # Stage 1: Base model
         results['stage1'] = self.run_stage_1(save_dir)
-
+        torch.cuda.empty_cache()
         # Stage 2: Decoder training
         tl.load_dataset(stage2_data_path, loader=load_east_kaz)
 
@@ -492,7 +492,7 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True)
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
 
