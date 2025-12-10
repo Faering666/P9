@@ -82,7 +82,7 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
 
         pred = np.clip(pred, 0, 1)
 
-        fig, axes = plt.subplots(2, 5, figsize=(14, 5))
+        _, axes = plt.subplots(2, 5, figsize=(14, 5))
         axes[0, 0].imshow(rgb_vis)
         axes[0, 0].set_title("RGB Input")
         axes[0, 0].axis("off")
@@ -102,6 +102,15 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
         file_name = "validation_result_" + str(index) + ".png"
         plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
         plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
+
+        for i in range(4):
+            _, axes = plt.subplots(1,  1, figsize=(14,5))
+            axes[0,0].imshow(pred[i], cmap='gray')
+            axes[0,0].set_title(f"Pred Band {i+1}"
+            plt.tight_layout()
+            file_name = "validation_result_" + str(index) "_{i+1}_.png"
+            plt.savefig(output_dir / file_name, dpi=150, bbox_incehs="tight")
+
         plt.close()
         print(f"Saved visualization to {file_name}")
         index += 1
