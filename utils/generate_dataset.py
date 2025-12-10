@@ -5,9 +5,11 @@ import numpy as np
 from collections import defaultdict
 import math
 
+from matplotlib.image import imread
+
 BAND_SUFFIXES = ["_MS_G.TIF", "_MS_R.TIF", "_MS_RE.TIF", "_MS_NIR.TIF"]
 
-def patch_images(rgb_path, patch_size=256):
+def patch_images(rgb_path, patch_size: int = 256):
     """
     Loads each of the bands and resizes the smallest size of them.
     Then it generates the patches and saves to disk.
@@ -34,41 +36,49 @@ def patch_images(rgb_path, patch_size=256):
         if h < smallest_height: smallest_height = h
         if w < smallest_width: smallest_width = w
 
-    bands = []
-    # Read each band path as image
-    for band_path in bands_paths:
-        img = cv2.imread(band_path)
-        if img is None:
-            print(f"[WARN] Cannot read image: {band_path}. Skipping this band.")
-            continue
-        bands.append(img)
+    img = cv2.imread(rgb)
+    x = 525
+    y = 400
+    rgb = img[y:(3956-y), x:(5280 - x)]
+    new_img = cv2.resize(rgb, (smallest_width, smallest_height), interpolation=cv2.INTER_CUBIC)
+    new = rgb_path.replace("_D.JPG", "_RGB.JPG")
+    cv2.imwrite(new , new_img)
 
-    # Resize images
-    for i, x in enumerate(bands):
-        bands[i] = cv2.resize(x, (smallest_width, smallest_height), interpolation=cv2.INTER_CUBIC)
+    # bands = []
+    # # Read each band path as image
+    # for band_path in bands_paths:
+    #     img = cv2.imread(band_path)
+    #     if img is None:
+    #         print(f"[WARN] Cannot read image: {band_path}. Skipping this band.")
+    #         continue
+    #     bands.append(img)
+    #
+    # # Resize images
+    # for i, x in enumerate(bands):
+    #     bands[i] = cv2.resize(x, (smallest_width, smallest_height), interpolation=cv2.INTER_CUBIC)
+    #
+    # # Calculate number of patches (small overlap is allowed)
+    # cols = smallest_width // patch_size
+    # rows = smallest_height // patch_size
+    #
+    # print(cols,"cols", rows, "rows")
 
-    # Calculate number of patches (small overlap is allowed)
-    cols = smallest_width // patch_size
-    rows = smallest_height // patch_size
-
-    print(cols,"cols", rows, "rows")
-
-    # Create patches and save to disk
-    patches = []
-    for idx, band in enumerate(bands):
-        counter = 0
-        for i in range(rows):
-            for j in range(cols):
-                counter += 1
-                y0 = i * (smallest_height // rows)
-                x0 = j * (smallest_width // cols)
-                patch = band[y0:y0 + patch_size, x0:x0 + patch_size]
-                patches.append(patch)
-
-                # Save to disk
-                patch_path = f"{bands_paths[idx][:-4]}_{counter}{bands_paths[idx][-4:]}"
-                cv2.imwrite(patch_path, patch)
-                print(patch_path)
+    # # Create patches and save to disk
+    # patches = []
+    # for idx, band in enumerate(bands):
+    #     counter = 0
+    #     for i in range(rows):
+    #         for j in range(cols):
+    #             counter += 1
+    #             y0 = i * (smallest_height // rows)
+    #             x0 = j * (smallest_width // cols)
+    #             patch = band[y0:y0 + patch_size, x0:x0 + patch_size]
+    #             patches.append(patch)
+    #
+    #             # Save to disk
+    #             patch_path = f"{bands_paths[idx][:-4]}_{counter}{bands_paths[idx][-4:]}"
+    #             cv2.imwrite(patch_path, patch)
+    #             print(patch_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
@@ -78,9 +88,9 @@ if __name__ == "__main__":
 
     root_dir = args.data_path
     for image_name in os.listdir(root_dir):
-        # Find the JPG rgb files in the directory 
+        # Find the JPG rgb files in the directory
         # Also filters weird singletons in the dataset
-        if image_name.endswith("_D.JPG"):
+        if image_name == "DJI_20230814123320_0001_D.JPG":
             rgb_path = os.path.join(root_dir, image_name)
             patch_images(rgb_path)
 
