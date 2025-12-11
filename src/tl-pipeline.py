@@ -4,7 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
-from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, DataCarrier
+from data_carrier import load_east_kaz, load_east_kaz_patch, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, DataCarrier
 from PIL import Image
 import numpy as np
 
@@ -496,7 +496,7 @@ class TransferLearning:
                 if stage2_full_picture:
                     loader = load_east_kaz
                 else:
-                    loader = load_east_kaz # East Kazakhstan dataset does not have patches
+                    loader = load_east_kaz_patch # East Kazakhstan dataset does not have patches
             case "Weedy-Rice":
                 if stage2_full_picture:
                     loader = load_weedy_rice
