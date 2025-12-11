@@ -15,8 +15,8 @@ def patch_images(rgb_path, patch_size=256):
     # Load image and bands
     rgb = rgb_path
     bands_paths = [rgb]
-    band_path = rgb_path.replace("0.jpg", "")
-    for x in {band_path + f"{suffix}.tif" for suffix in range(2,6)}:
+    band_path = rgb_path.replace("0.JPG", "")
+    for x in {band_path + f"{suffix}.TIF" for suffix in range(2,6)}:
         bands_paths.append(x)
     bands_paths= sorted(bands_paths)
     # Find the smallest size image
@@ -65,7 +65,6 @@ def patch_images(rgb_path, patch_size=256):
 
                 # Save to disk
                 patch_path = f"{bands_paths[idx][:-4]}_{counter}{bands_paths[idx][-4:]}"
-                breakpoint()
                 cv2.imwrite(patch_path, patch)
                 print(patch_path)
 
@@ -77,7 +76,7 @@ if __name__ == "__main__":
 
     root_dir = args.data_path
     root_dir = Path(root_dir)
-    for image_name in root_dir.rglob("*0.jpg"):
+    for image_name in root_dir.rglob("*0.JPG"):
         # Find the JPG rgb files in the directory 
         # Also filters weird singletons in the dataset
         # if image_name.endswith("_D.JPG"):
