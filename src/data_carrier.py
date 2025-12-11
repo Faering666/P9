@@ -20,7 +20,8 @@ def load_east_kaz (root_dir: Path) -> list[Path]:
     return rgb_paths
 
 def load_east_kaz_patch (root_dir: Path) -> list[Path]:
-    rgb_paths = sorted([f for f in root_dir.rglob("_*0_*.jpg")])
+    rgb_paths = sorted([f for f in root_dir.rglob("*") if f.is_file() and any(f.name.lower().endswith(f"_{x}.jpg") for x in range(31))])
+    print(len(rgb_paths))
     return rgb_paths
 
 def load_weedy_rice (root_dir: Path) -> list[Path]:
@@ -41,7 +42,7 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type="Sri-Lanka"):
+    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]]):
         self.root_dir = Path(root_dir)
         self.bases = load_data(self.root_dir)
         self.full = True
@@ -98,13 +99,10 @@ class DataCarrier(Dataset):
         # Load ms bands in correct order (G, R, RE, NIR)
         bands = []
         match self.data_type:
-            case "Sri_Lanka":
+            case "Sri-Lanka":
                 for suffix in self.BAND_ORDER:
                     path = os.path.join(base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
                     band = self._load_and_normalize(path)
-                    # Take first channel if image is 3-channel (grayscale stored as RGB)
-                    if band.ndim == 3:
-                        band = band[:, :, 0]
                     bands.append(band)
                 target = np.stack(bands, axis=-1)
 
@@ -135,7 +133,7 @@ class DataCarrier(Dataset):
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
-    dataset = DataCarrier(root_dir="data/kz", load_data=load_east_kaz, data_type="Kazahkstan")
+    dataset = DataCarrier(root_dir="data/Multispectral-Sri-Lanka", load_data=load_sri_lanka_patch)
     print(dataset.__len__())
     sample = dataset[0]
     print("rgb patch shape:", sample["rgb"].shape)

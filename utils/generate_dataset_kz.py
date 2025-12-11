@@ -35,7 +35,7 @@ def patch_images(rgb_path, patch_size=256):
     bands = []
     # Read each band path as image
     for band_path in bands_paths:
-        img = cv2.imread(band_path)
+        img = cv2.imread(band_path, cv2.IMREAD_UNCHANGED)
         if img is None:
             print(f"[WARN] Cannot read image: {band_path}. Skipping this band.")
             continue
@@ -81,5 +81,5 @@ if __name__ == "__main__":
         # Also filters weird singletons in the dataset
         # if image_name.endswith("_D.JPG"):
         #     rgb_path = os.path.join(root_dir, image_name)
-        patch_images(str(image_name))
+        patch_images(str(image_name), patch_size=args.patch_size)
     print(f"\nDone creating the dataset!")

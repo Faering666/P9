@@ -233,8 +233,8 @@ class TransferLearning:
             total_loss += loss.item()
             num_batches += 1
 
-            #if (batch_idx + 1) % 10 == 0:
-                # print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
+            if (batch_idx + 1) % 10 == 0:
+                 print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
@@ -513,7 +513,7 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
 
@@ -533,7 +533,7 @@ class TransferLearning:
                 if stage3_full_picture:
                     loader = load_east_kaz
                 else:
-                    loader = load_east_kaz # East Kazakhstan dataset does not have patches
+                    loader = load_east_kaz_patch
             case "Weedy-Rice":
                 if stage3_full_picture:
                     loader = load_weedy_rice
