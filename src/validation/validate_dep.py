@@ -1,228 +1,17 @@
-from warnings import catch_warnings
 import numpy as np
 import os
 import json
 import glob
-import h5py  # for reading .mat files saved like in your dataset script
+import h5py
 
+from metric_calculator import MetricCalculator  # for reading .mat files saved like in your dataset script
 
-class MetricCalculator:
-    """
-    NumPy implementations of the metrics from utils.py, plus MSE.
-
-    Supports both:
-    - Single image:  (H, W, C) or (C, H, W)
-    - Batch images:  (N, C, H, W) or (N, H, W, C)
-
-    By default, PSNR is computed with data_range=255 to match the original
-    Loss_PSNR implementation in utils.py.
-    """
-
-    def __init__(
-        self,
-        data_range=255.0,
-        eps=1e-8,
-        ndvi_red_idx: int = 25, # 650
-        ndvi_nir_idx: int = 30, # 700
-        channel_axis: int = 0,
-        ):
-        """
-        data_range: used for PSNR (e.g. 255.0 or 1.0)
-        eps:        small constant to avoid division by zero
-        ndvi_red_idx / ndvi_nir_idx:
-            indices of the RED and NIR bands along `channel_axis`.
-            If either is None, NDVI metric will be disabled.
-        channel_axis:
-            which axis is the spectral/channel dimension:
-            - 0 for (C,H,W)
-            - 1 for (N,C,H,W)
-            - 2 or -1 if you use (H,W,C) / (N,H,W,C), etc.
-        """
-        self.data_range = float(data_range)
-        self.eps = float(eps)
-        self.ndvi_red_idx: int = ndvi_red_idx
-        self.ndvi_nir_idx: int = ndvi_nir_idx
-        self.channel_axis = channel_axis
-
-    # ---------- internal helpers ----------
-
-    @staticmethod
-    def _to_numpy(x):
-        """Convert input to float32 NumPy array."""
-        return np.asarray(x, dtype=np.float32)
-
-    @staticmethod
-    def _ensure_same_shape(pred, target):
-        if pred.shape != target.shape:
-            raise ValueError(
-                f"Shape mismatch: pred {pred.shape} vs target {target.shape}"
-            )
-
-    @staticmethod
-    def _add_batch_dim_if_needed(arr):
-        """
-        If arr has no batch dimension (e.g. HWC or CHW),
-        treat it as a batch of size 1.
-        """
-        if arr.ndim == 3:
-            return arr[None, ...]  # (1, C, H, W) or (1, H, W, C)
-        elif arr.ndim < 3:
-            raise ValueError(
-                f"Expected at least 3D array (C,H,W or H,W,C), got shape {arr.shape}"
-            )
-        return arr
-
-    # ---------- metrics ----------
-
-    def mse(self, pred, target):
-        """
-        Mean Squared Error over all pixels & channels.
-        """
-        pred = self._to_numpy(pred)
-        target = self._to_numpy(target)
-        self._ensure_same_shape(pred, target)
-
-        diff = pred - target
-        return float(np.mean(diff ** 2))
-
-    def rmse(self, pred, target):
-        """
-        Root Mean Squared Error (sqrt of MSE).
-        Mirrors Loss_RMSE in utils.py (but using NumPy).
-        """
-        return float(np.sqrt(self.mse(pred, target)))
-
-    def mrae(self, pred, target):
-        """
-        Mean Relative Absolute Error:
-            mean( |pred - target| / target )
-
-        We add eps in the denominator to avoid division by zero,
-        which is slightly more numerically stable than the original.
-        """
-        pred = self._to_numpy(pred)
-        target = self._to_numpy(target)
-        self._ensure_same_shape(pred, target)
-
-        denom = np.abs(target) + self.eps
-        rel_err = np.abs(pred - target) / denom
-        return float(np.mean(rel_err))
-
-    def psnr(self, pred, target):
-        """
-        Peak Signal-to-Noise Ratio.
-
-        Matches the original Loss_PSNR semantics:
-        - clamp inputs to [0, 1]
-        - multiply by data_range (default 255)
-        - compute MSE over all pixels per image
-        - take PSNR = mean over batch
-        """
-        pred = self._to_numpy(pred)
-        target = self._to_numpy(target)
-        self._ensure_same_shape(pred, target)
-
-        # Clamp to [0, 1] like in Loss_PSNR
-        pred = np.clip(pred, 0.0, 1.0)
-        target = np.clip(target, 0.0, 1.0)
-
-        # Apply data_range
-        pred = pred * self.data_range
-        target = target * self.data_range
-
-        # Ensure batch dimension
-        pred = self._add_batch_dim_if_needed(pred)
-        target = self._add_batch_dim_if_needed(target)
-
-        # Flatten per sample: (N, -1)
-        N = pred.shape[0]
-        pred_flat = pred.reshape(N, -1)
-        target_flat = target.reshape(N, -1)
-
-        mse_per_sample = np.mean((pred_flat - target_flat) ** 2, axis=1)
-
-        # Avoid division by zero
-        mse_per_sample = np.maximum(mse_per_sample, self.eps)
-
-        psnr_per_sample = 10.0 * np.log10((self.data_range ** 2) / mse_per_sample)
-        return float(np.mean(psnr_per_sample))
-    
-    # -------------- NDVI --------------
-    def _ndvi_map(self, cube: np.ndarray) -> np.ndarray:
-        """
-        Compute NDVI map from a hyperspectral cube.
-
-        cube: shape (..., C, H, W) or (..., H, W, C) depending on channel_axis.
-              We support 3D or 4D (batch) arrays.
-        Returns:
-            NDVI map with shape matching cube except channel_axis removed,
-            e.g. (H,W) or (N,H,W).
-        """
-        if self.ndvi_red_idx is None or self.ndvi_nir_idx is None:
-            raise RuntimeError(
-                "NDVI indices not set; please pass ndvi_red_idx and "
-                "ndvi_nir_idx to MetricCalculator.__init__"
-            )
-
-        cube = self._to_numpy(cube)
-        if cube.ndim not in (3, 4):
-            raise ValueError(f"NDVI expects 3D or 4D cube, got {cube.ndim}D")
-
-        red = np.take(cube, self.ndvi_red_idx, axis=self.channel_axis)
-        nir = np.take(cube, self.ndvi_nir_idx, axis=self.channel_axis)
-
-        # Both red and nir now have shape (..., H, W)
-        ndvi = (nir - red) / (nir + red + self.eps)
-        return ndvi
-
-    def ndvi_rmse(self, pred, target):
-        """
-        RMSE between predicted and ground-truth NDVI maps.
-        Returns a single scalar.
-
-        This is what will be reported as 'NDVI_RMSE' in compute_all().
-        """
-        pred = self._to_numpy(pred)
-        target = self._to_numpy(target)
-        self._ensure_same_shape(pred, target)
-
-        ndvi_pred = self._ndvi_map(pred)
-        ndvi_true = self._ndvi_map(target)
-
-        diff = ndvi_pred - ndvi_true
-        return float(np.sqrt(np.mean(diff ** 2)))
-        
-    def _ndvi_mean(self, cube: np.ndarray) -> float:
-        """
-        Mean NDVI over all pixels (and batch elements if present).
-        This is the scalar 'NDVI score'
-        """
-        ndvi = self._ndvi_map(cube)
-        return float(np.mean(ndvi))
-
-    
-
-    def compute_all(self, pred, target):
-        """
-        Convenience method to get all metrics at once.
-        Returns a dict of floats.
-        """
-        return {
-            "MRAE": self.mrae(pred, target),
-            "RMSE": self.rmse(pred, target),
-            "MSE": self.mse(pred, target),
-            "PSNR": self.psnr(pred, target),
-            "NDVI_PRED": self._ndvi_mean(pred),
-            "NDVI_GT": self._ndvi_mean(target),
-            "NDVI_RMSE": self.ndvi_rmse(pred, target)
-        }
-
-class DirectoryMetricEvaluator:
+class Evaluator:
     def __init__(
         self,
         result_path: str,
         correct_path: str,
-        metric_calculator: MetricCalculator | None = None,
+        metric_calculator: MetricCalculator,
         gt_key: str = "cube",
         pred_ext: str = "npy",
         gt_ext: str = "mat",
@@ -232,7 +21,7 @@ class DirectoryMetricEvaluator:
         self.gt_key = gt_key
         self.pred_ext = pred_ext
         self.gt_ext = gt_ext
-        self.metrics = metric_calculator or MetricCalculator()
+        self.metrics = metric_calculator
 
     # ---- your helper, minimally adapted into the class ----
     def _scan_dir_for_extension(self, dir_path: str, file_extension: str) -> list[dict[str, str]]:
@@ -385,7 +174,7 @@ class DirectoryMetricEvaluator:
                 else:
                     raise ValueError(f"Shape mismatch for {name}: pred {pred.shape}, gt {gt.shape}")
 
-            metrics_dict = self.metrics.compute_all(pred, gt)
+            metrics_dict = self.metrics.compute(pred, gt)
 
             per_file_scores.append({
                 "name": name,
@@ -438,10 +227,9 @@ if __name__ == "__main__":
     result_dir = "./class_exp/mst_plus_plus/mst_all"
     gt_dir = "C:/Users/tobia/Downloads/ARAD_1K_Mirror/*_spectral/"
 
-    evaluator = DirectoryMetricEvaluator(
+    evaluator = Evaluator(
         result_path=result_dir,
         correct_path=gt_dir,
-        metric_calculator=MetricCalculator(data_range=255.0),
         gt_key="cube",       # change if your .mat files use a different variable name
         pred_ext="npy",
         gt_ext="mat",
@@ -449,13 +237,8 @@ if __name__ == "__main__":
 
     results_file = "./new-results.json"
     scores = evaluator.evaluate(results_file)
-    print("MRAE:", scores["MRAE"])
-    print("RMSE:", scores["RMSE"])
-    print("MSE: ", scores["MSE"])
-    print("PSNR:", scores["PSNR"])
-    print("NDVI_PRED:", scores["NDVI_PRED"])
-    print("NDVI_GT:", scores["NDVI_GT"])
-    print("NDVI_RMSE:", scores["NDVI_RMSE"])
+    for name, value in scores.items():
+        print(f"{name}: {value:.6f}")
     
     # print("=========================")
     # scores = evaluator.evaluate_from_file(results_file)
