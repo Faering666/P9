@@ -131,12 +131,24 @@ class TransferLearning:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
         print("DONE!")
 
-        # NOTE: removed interactive breakpoint for automated runs
+        # Free checkpoint memory
+        del checkpoint, pretrained_dict, model_state, filtered
+        self.clear_gpu_memory()
 
     def set_requires_grad(self, module, requires_grad: bool):
         """Recursively set requires_grad for all parameters in a module."""
         for p in module.parameters():
             p.requires_grad = requires_grad
+
+    def clear_gpu_memory(self):
+        """Clear GPU memory cache and run garbage collection."""
+        gc.collect()
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        elif self.device == "mps":
+            # MPS doesn't have empty_cache, but we can still run gc
+            pass
 
     def save_model(self, save_path, stage_name, epoch=None):
         """
@@ -226,7 +238,7 @@ class TransferLearning:
             targets = batch["ms"].to(self.device, non_blocking=True)
 
             # Forward pass
-            self.optimiser.zero_grad()
+            self.optimiser.zero_grad(set_to_none=True)  # More memory efficient than zero_grad()
             outputs = self.model(inputs)
             loss = self.criterion(outputs, targets)
 
@@ -234,13 +246,26 @@ class TransferLearning:
             loss.backward()
             self.optimiser.step()
 
-            total_loss += loss.item()
+            # Detach loss value before accumulating to prevent memory leak
+            total_loss += loss.detach().item()
             num_batches += 1
 
             if (batch_idx + 1) % 10 == 0:
                  print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
+            # Free GPU memory
+            del inputs, targets, outputs, loss
+
+            # Periodic cache clearing to prevent fragmentation
+            if (batch_idx + 1) % 50 == 0 and self.device == "cuda":
+                torch.cuda.empty_cache()
+
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+
+        # Clear cache after epoch
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+
         return avg_loss
 
     def validate_epoch(self, dataloader):
@@ -258,7 +283,7 @@ class TransferLearning:
         num_batches = 0
 
         with torch.no_grad():
-            for batch in dataloader:
+            for batch_idx, batch in enumerate(dataloader):
                 inputs = batch["rgb"].to(self.device, non_blocking=True)
                 targets = batch["ms"].to(self.device, non_blocking=True)
 
@@ -269,7 +294,19 @@ class TransferLearning:
                 total_loss += loss.item()
                 num_batches += 1
 
+                # Free GPU memory
+                del inputs, targets, outputs, loss
+
+                # Periodic cache clearing
+                if (batch_idx + 1) % 50 == 0 and self.device == "cuda":
+                    torch.cuda.empty_cache()
+
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+
+        # Clear cache after validation
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+
         return avg_loss
 
     def load_dataset(self, root_dir, loader):
@@ -515,9 +552,15 @@ class TransferLearning:
             learning_rate=stage2_lr, save_dir=save_dir
         )
 
-        self._load_pretrained(results['stage2'])
-
+        # Clean up stage 2 resources before moving to stage 3
+        del train_dataloader, val_dataloader, train_dataset, val_dataset
         self.dataset = None
+        gc.collect()
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+            print("[Memory] Cleaned up Stage 2 resources, freed GPU memory")
+
+        self._load_pretrained(results['stage2'])
 
         # Stage 3: Full fine-tuning
         match self.stage3_data_type:
