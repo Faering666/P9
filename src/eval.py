@@ -12,7 +12,14 @@ from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_ful
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu" # Recommended when running full pictures to avoid OOM errors
 
-def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=False, single_picture=None, amount="Full", model_path="model_final.pkl", full_picture=False):
+def run(root_dir="data/",
+        data_type="Sri-Lanka",
+        save_dir="results",
+        single=False,
+        single_picture="",
+        amount="Full",
+        model_path="model_final.pkl",
+        full_picture=False):
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
     ouput_dir= Path(save_dir)
     ouput_dir.mkdir(parents=True, exist_ok=True)

@@ -120,8 +120,14 @@ class DataCarrier(Dataset):
                         bands.append(band)
                     target = np.stack(bands, axis=-1)
             case "Weedy-Rice":
-                breakpoint() #Not implemented
-
+                for suffix in self.BAND_ORDER:
+                    path = os.path.join(base.replace(".JPG", f"_{suffix}.TIF"))
+                    band = self._load_and_normalize(path)
+                    if band.ndim == 3:
+                        band = band[:,:,0]
+                    bands.append(band)
+                   
+                target = np.stack(bands, axis=-1)
 
 
 
@@ -133,7 +139,7 @@ class DataCarrier(Dataset):
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
-    dataset = DataCarrier(root_dir="data/Multispectral-Sri-Lanka", load_data=load_sri_lanka_patch)
+    dataset = DataCarrier(root_dir="data/WeedyRice", load_data=load_weedy_rice)
     print(dataset.__len__())
     sample = dataset[0]
     print("rgb patch shape:", sample["rgb"].shape)
