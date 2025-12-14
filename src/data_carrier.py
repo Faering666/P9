@@ -28,6 +28,10 @@ def load_weedy_rice (root_dir: Path) -> list[Path]:
     rgb_paths = sorted([f for f in root_dir.rglob("*.JPG") if f.is_file()])
     return rgb_paths
 
+def load_weedy_rice_patch(root_dir: Path) -> list[Path]:
+    rgb_paths = sorted([f for f in root_dir.rglob("*") if f.is_file() and any(f.name.lower().endswith(f"_{x}.jpg") for x in range(71))])
+    return rgb_paths
+
 def load_single_picture (root_dir: Path) -> list[Path]: 
     rgb_paths = [root_dir]
     return rgb_paths
@@ -42,7 +46,7 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]]):
+    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type: str = "Sri-Lanka"):
         self.root_dir = Path(root_dir)
         self.bases = load_data(self.root_dir)
         self.full = True
@@ -63,7 +67,6 @@ class DataCarrier(Dataset):
                 self.data_type = "Weedy-Rice"
                 self.full = True
             case "load_weedy_rice_patch":
-                breakpoint() #Not yet implemented
                 self.data_type = "Weedy-Rice"
                 self.full = False
             case "load_single_picture":
@@ -120,12 +123,20 @@ class DataCarrier(Dataset):
                         bands.append(band)
                     target = np.stack(bands, axis=-1)
             case "Weedy-Rice":
-                for suffix in self.BAND_ORDER:
-                    path = os.path.join(base.replace(".JPG", f"_{suffix}.TIF"))
-                    band = self._load_and_normalize(path)
-                    if band.ndim == 3:
-                        band = band[:,:,0]
-                    bands.append(band)
+                if self.full:
+                    for suffix in self.BAND_ORDER:
+                        path = os.path.join(base.replace(".JPG", f"_{suffix}.TIF"))
+                        band = self._load_and_normalize(path)
+                        if band.ndim == 3:
+                            band = band[:,:,0]
+                        bands.append(band)
+                else:
+                    for suffix in self.BAND_ORDER:
+                        path = os.path.join(base.replace(f".JPG", ".TIF").replace("m_", f"m_{suffix}_"))
+                        band = self._load_and_normalize(path)
+                        if band.ndim == 3:
+                            band = band[:,:,0]
+                        bands.append(band)
                    
                 target = np.stack(bands, axis=-1)
 
@@ -139,7 +150,7 @@ class DataCarrier(Dataset):
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
-    dataset = DataCarrier(root_dir="data/WeedyRice", load_data=load_weedy_rice)
+    dataset = DataCarrier(root_dir="data/KZ", load_data=load_east_kaz_patch)
     print(dataset.__len__())
     sample = dataset[0]
     print("rgb patch shape:", sample["rgb"].shape)

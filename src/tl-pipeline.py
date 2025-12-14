@@ -4,7 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
-from data_carrier import load_east_kaz, load_east_kaz_patch, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, DataCarrier
+from data_carrier import load_east_kaz, load_east_kaz_patch, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, load_weedy_rice_patch, DataCarrier
 from PIL import Image
 import numpy as np
 import eval
@@ -52,8 +52,6 @@ class TransferLearning:
         else:
             self.device = "cpu"
         print(f"[Device] Using device: {self.device}")
-        
-
 
         self.model = None
         self.dataset = None
@@ -489,12 +487,12 @@ class TransferLearning:
                 if self.stage2_full_picture:
                     loader = load_east_kaz
                 else:
-                    loader = load_east_kaz_patch # East Kazakhstan dataset does not have patches
+                    loader = load_east_kaz_patch
             case "Weedy-Rice":
                 if self.stage2_full_picture:
                     loader = load_weedy_rice
                 else:
-                    loader = load_weedy_rice # Weedy Rice dataset does not have patches
+                    loader = load_weedy_rice_patch
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
@@ -535,7 +533,7 @@ class TransferLearning:
                 if self.stage3_full_picture:
                     loader = load_weedy_rice
                 else:
-                    loader = load_weedy_rice # Weedy Rice dataset does not have patches
+                    loader = load_weedy_rice_patch
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
@@ -547,8 +545,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=2, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
             train_dataloader, stage3_epochs, val_dataloader=val_dataloader,
@@ -570,10 +568,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get data paths.")
     parser.add_argument("--data_path2", default="data/")
-    parser.add_argument("--data_type2", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Kazakhstan")
+    parser.add_argument("--data_type2", help="Which dataset", default="Kazakhstan")
     parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--data_path3", default="data/")
-    parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
     parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
 
     tl = TransferLearning()
@@ -600,8 +598,8 @@ if __name__ == "__main__":
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
-        stage2_epochs=0,      # Train decoder for 50 epochs
-        stage3_epochs=2,      # Fine-tune all layers for 30 epochs
+        stage2_epochs=100,      # Train decoder for 50 epochs
+        stage3_epochs=100,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
         stage3_lr=1e-7,        # Low learning rate for stage 3
         save_dir="checkpoints"
