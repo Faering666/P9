@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import os
+import glob
 
 def read_and_preprocess(path, grayscale=True):
     if grayscale:
@@ -55,29 +57,52 @@ def crop_to_valid_overlap(images, extra_margin=0.05):
     h -= 2 * margin_y
     return [img[y:y+h, x:x+w] for img in images]
 
-paths = {
-    'rgb': r'data\sri_lanka\DJI_20230814123320_0001_D.JPG',
-    'green': r'data\sri_lanka\DJI_20230814123320_0001_MS_G.TIF',
-    'red': r'data\sri_lanka\DJI_20230814123320_0001_MS_R.TIF',
-    'red_edge': r'data\sri_lanka\DJI_20230814123320_0001_MS_RE.TIF',
-    'nir': r'data\sri_lanka\DJI_20230814123320_0001_MS_NIR.TIF'
-}
+def find_image_sets(input_folder):
+    # Find all unique base names for image sets in the folder
+    pattern = os.path.join(input_folder, '*_MS_G.TIF')
+    green_files = glob.glob(pattern)
+    sets = []
+    for green_path in green_files:
+        base = green_path.replace('_MS_G.TIF', '')
+        paths = {
+            'rgb': base.replace('_MS', '') + '_D.JPG',
+            'green': base + '_MS_G.TIF',
+            'red': base + '_MS_R.TIF',
+            'red_edge': base + '_MS_RE.TIF',
+            'nir': base + '_MS_NIR.TIF',
+        }
+        if all(os.path.exists(paths[k]) for k in paths):
+            sets.append(paths)
+    return sets
 
-# Read RGB in color, others in grayscale
-ref_img = read_and_preprocess(paths['green'], grayscale=True)
-images = []
-# Align RGB to reference
-rgb_img = read_and_preprocess(paths['rgb'], grayscale=False)
-aligned_rgb = align_image(ref_img, rgb_img, use_affine=True)
-images.append(aligned_rgb)
-# Align all MS bands (including green itself, which will be identical to ref_img)
-for band in ['green', 'red', 'red_edge', 'nir']:
-    img = read_and_preprocess(paths[band])
-    aligned = align_image(ref_img, img, use_affine=True)
-    images.append(aligned)
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Batch align and crop multispectral images.')
+    parser.add_argument('--input_folder', type=str, required=True, help='Input folder containing image sets')
+    parser.add_argument('--output_folder', type=str, help='Output folder for aligned/cropped images', default="data/aligned_images")
+    args = parser.parse_args()
 
-cropped_images = crop_to_valid_overlap(images)
+    os.makedirs(args.output_folder, exist_ok=True)
+    image_sets = find_image_sets(args.input_folder)
+    print(f'Found {len(image_sets)} image sets.')
 
-# Save results
-for i, band in enumerate(['rgb', 'green', 'red', 'red_edge', 'nir']):
-    cv2.imwrite(f'aligned_cropped_{band}.png', cropped_images[i])
+    for paths in image_sets:
+        try:
+            ref_img = read_and_preprocess(paths['green'], grayscale=True)
+            images = []
+            rgb_img = read_and_preprocess(paths['rgb'], grayscale=False)
+            aligned_rgb = align_image(ref_img, rgb_img, use_affine=True)
+            images.append(aligned_rgb)
+            for band in ['green', 'red', 'red_edge', 'nir']:
+                img = read_and_preprocess(paths[band])
+                aligned = align_image(ref_img, img, use_affine=True)
+                images.append(aligned)
+            cropped_images = crop_to_valid_overlap(images)
+            # Save results
+            base_name = os.path.basename(paths['green']).replace('_MS_G.TIF', '')
+            for i, band in enumerate(['rgb', 'green', 'red', 'red_edge', 'nir']):
+                out_path = os.path.join(args.output_folder, f'{base_name}_aligned_cropped_{band}.png')
+                cv2.imwrite(out_path, cropped_images[i])
+            print(f'Processed {base_name}')
+        except Exception as e:
+            print(f'Failed to process set {paths}: {e}')
