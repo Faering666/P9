@@ -134,21 +134,28 @@ class TransferLearning:
         total_loss = 0.0
         num_batches = 0
 
+        scaler = torch.amp.GradScaler()
+
         for batch_idx, batch in enumerate(dataloader):
             inputs = batch["rgb"].to(self.device)
             targets = batch["ms"].to(self.device)
 
             # Forward pass
             self.optimiser.zero_grad()
-            outputs = self.model(inputs)
-            loss = self.criterion(outputs, targets)
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
 
             # Backward pass
-            loss.backward()
-            self.optimiser.step()
+            scaler.scale(loss).backward()
+            
+            scaler.step(self.optimiser)
+            #self.optimiser.step()
 
             total_loss += loss.item()
             num_batches += 1
+
+            scaler.update()
 
             if (batch_idx + 1) % 10 == 0:
                  print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
@@ -157,21 +164,22 @@ class TransferLearning:
         return avg_loss
 
     def validate_epoch(self, dataloader):
-        self.model.eval(mode=False)
+        self.model.eval()
         total_loss = 0.0
         num_batches = 0
 
         with torch.no_grad():
-            for batch in dataloader:
-                inputs = batch["rgb"].to(self.device, non_blocking=True)
-                targets = batch["ms"].to(self.device, non_blocking=True)
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                for batch in dataloader:
+                    inputs = batch["rgb"].to(self.device, non_blocking=True)
+                    targets = batch["ms"].to(self.device, non_blocking=True)
 
-                # Forward pass only
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, targets)
+                    # Forward pass only
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, targets)
 
-                total_loss += loss.item()
-                num_batches += 1
+                    total_loss += loss.item()
+                    num_batches += 1
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
@@ -341,8 +349,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
         results['stage2'] = self.run_stage_2(
             train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
@@ -405,7 +413,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Get data paths.")
     parser.add_argument("--data_path2", default="data/")
     parser.add_argument("--data_type2", help="Which dataset", default="Kazakhstan")
-    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
+    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
     parser.add_argument("--data_path3", default="data/")
     parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
     parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
