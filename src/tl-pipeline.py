@@ -69,8 +69,6 @@ class TransferLearning:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
         print("DONE!")
 
-        # NOTE: removed interactive breakpoint for automated runs
-
     def set_requires_grad(self, module, requires_grad: bool):
         """Recursively set requires_grad for all parameters in a module."""
         for p in module.parameters():
@@ -116,12 +114,12 @@ class TransferLearning:
         print(f"[Freeze] Decoder only: {trainable_params}/{total_params} parameters trainable")
 
     def unfreeze_all(self):
-        """
-        Unfreeze all layers in the model.
-        This is used in Stage 3 of transfer learning.
-        """
-        self.set_requires_grad(self.model, True)
+        # self.set_requires_grad(self.model, True)
+        self.set_requires_grad(self.model.conv_in, False)
+        self.set_requires_grad(self.model.body, True)
 
+        # Unfreeze conv_out (decoder)
+        self.set_requires_grad(self.model.conv_out, True)
         trainable_params = len(list(p.numel() for p in self.model.parameters() if p.requires_grad))
         print(f"[Unfreeze] All layers: {trainable_params} parameters trainable")
 
@@ -389,8 +387,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
             train_dataloader, stage3_epochs, val_dataloader=val_dataloader,
@@ -416,7 +414,7 @@ if __name__ == "__main__":
     parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
     parser.add_argument("--data_path3", default="data/")
     parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
-    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
+    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
 
     # Initialize the transfer learning pipeline
     tl = TransferLearning()
@@ -433,8 +431,8 @@ if __name__ == "__main__":
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
-        stage2_epochs=100,      # Train decoder for 50 epochs
-        stage3_epochs=100,      # Fine-tune all layers for 30 epochs
+        stage2_epochs=5,      # Train decoder for 50 epochs
+        stage3_epochs=5,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
         stage3_lr=1e-7,        # Low learning rate for stage 3
         save_dir="checkpoints"
@@ -444,5 +442,39 @@ if __name__ == "__main__":
     # tl.run_stage_1(save_dir="checkpoints")
     # tl.run_stage_2(train_dataloader, epochs=50, val_dataloader=val_dataloader,
     #                learning_rate=1e-5, save_dir="checkpoints")
+
+    # Stage 3: Full fine-tuning
+    # tl._load_pretrained("src/mstpp/mst_plus_plus.pth")
+
+    # match tl.stage3_data_type:
+    #     case "Sri-Lanka":
+    #         if tl.stage3_full_picture:
+    #             loader =  load_sri_lanka_full
+    #         else:
+    #             loader = load_sri_lanka_patch
+    #     case "Kazakhstan":
+    #         if tl.stage3_full_picture:
+    #             loader = load_east_kaz
+    #         else:
+    #             loader = load_east_kaz_patch
+    #     case "Weedy-Rice":
+    #         if tl.stage3_full_picture:
+    #             loader = load_weedy_rice
+    #         else:
+    #             loader = load_weedy_rice_patch
+    #     case _:
+    #         print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+    #         breakpoint() #Dummefejl
+    # tl.load_dataset(tl.stage3_data_path, loader=loader)
+
+    # total_len = len(tl.dataset)
+    # val_len = max(1, int(0.1 * total_len))
+    # train_len = total_len - val_len
+    # train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
+
+    # # Prepare your dataloaders
+    # train_dataloader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=True)
+    # val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
+
     # tl.run_stage_3(train_dataloader, epochs=30, val_dataloader=val_dataloader,
     #                learning_rate=1e-7, save_dir="checkpoints")
