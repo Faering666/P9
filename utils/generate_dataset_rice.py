@@ -5,7 +5,7 @@ import numpy as np
 from collections import defaultdict
 import math
 
-BAND_SUFFIXES = ["_MS_G.TIF", "_MS_R.TIF", "_MS_RE.TIF", "_MS_NIR.TIF"]
+BAND_SUFFIXES = ["_G.TIF", "_R.TIF", "_RE.TIF", "_NIR.TIF"]
 
 def patch_images(rgb_path, patch_size=256):
     """
@@ -17,7 +17,7 @@ def patch_images(rgb_path, patch_size=256):
     print(rgb_path)
     rgb = rgb_path
     bands_paths = [rgb]
-    band_path = rgb_path.replace("_D.JPG", "")
+    band_path = rgb_path.replace(".JPG", "")
     for x in {band_path + suffix for suffix in BAND_SUFFIXES}:
         bands_paths.append(x)
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     for image_name in os.listdir(root_dir):
         # Find the JPG rgb files in the directory 
         # Also filters weird singletons in the dataset
-        if image_name.endswith("_D.JPG"):
+        if image_name.endswith(".JPG"):
             rgb_path = os.path.join(root_dir, image_name)
             patch_images(rgb_path)
 

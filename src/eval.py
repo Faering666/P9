@@ -6,13 +6,20 @@ from data_carrier import DataCarrier
 from torch.utils.data import DataLoader
 import argparse
 from pathlib import Path
-from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, DataCarrier
+from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, load_weedy_rice, DataCarrier
 
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu" # Recommended when running full pictures to avoid OOM errors
 
-def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=False, single_picture=None, amount="Full", model_path="model_final.pkl", full_picture=False):
+def run(root_dir="data/",
+        data_type="Sri-Lanka",
+        save_dir="results",
+        single=False,
+        single_picture="",
+        amount="Full",
+        model_path="model_final.pkl",
+        full_picture=False):
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
     ouput_dir= Path(save_dir)
     ouput_dir.mkdir(parents=True, exist_ok=True)
@@ -55,7 +62,31 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
         dataset = DataCarrier(root_dir, load_sri_lanka_full)
     else:
         dataset = DataCarrier(root_dir, load_sri_lanka_patch)
-    
+
+    if single:
+        # Single picture does not care for full or patch
+        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type)
+    else:
+        match data_type:
+            case "Sri-Lanka":
+                if full_picture:
+                    dataset = DataCarrier(root_dir, load_sri_lanka_full)
+                else:
+                    dataset = DataCarrier(root_dir, load_sri_lanka_patch)
+            case "Kazakhstan":
+                if full_picture:
+                    dataset = DataCarrier(root_dir, load_east_kaz)
+                else:
+                    dataset = DataCarrier(root_dir, load_east_kaz) # East Kazakhstan dataset does not have patches
+            case "Weedy-Rice":
+                if full_picture:
+                    dataset = DataCarrier(root_dir, load_weedy_rice)
+                else:
+                    dataset = DataCarrier(root_dir, load_weedy_rice) # Weedy Rice dataset does not have patches
+            case _:
+                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                breakpoint() #Dummefejl
+
     index = 0
 
     dataset = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -99,19 +130,21 @@ def run(root_dir="data/", data_type="Sri-Lanka", save_dir="results", single=Fals
 
         axes[1, 4].axis("off")
         plt.tight_layout()
-        file_name = "validation_result_" + str(index) + ".png"
+        file_name = f"validation_result_{str(index)}.png"
         plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
         plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
+        plt.close()
 
         for i in range(4):
             _, axes = plt.subplots(1,  1, figsize=(14,5))
-            axes[0,0].imshow(pred[i], cmap='gray')
-            axes[0,0].set_title(f"Pred Band {i+1}"
+            axes.imshow(pred[i], cmap='gray')
+            axes.set_title(f"Pred Band {i+1}")
             plt.tight_layout()
-            file_name = "validation_result_" + str(index) "_{i+1}_.png"
-            plt.savefig(output_dir / file_name, dpi=150, bbox_incehs="tight")
+            file_name = f"validation_result_{str(index)}_{i+1}_.png"
+            plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
+            plt.close()
 
-        plt.close()
+        
         print(f"Saved visualization to {file_name}")
         index += 1
 
@@ -123,16 +156,26 @@ if __name__ == "__main__":
     parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
     parser.add_argument("--save_path", help="Name of save directory", default="results")
-    parser.add_argument("--data_type", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazakhstan", "Weedy-Rice"], help="Which dataset default=Sri-Lanka", default="Sri-Lanka")
     parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", default="model_final.pkl")
     args = parser.parse_args()
     root_dir = args.data_path # Root directory of data (data/)
-    data_type = args.data_type #Dataset type (Sri-Lanka or Kazakhstan)
+    try:
+        data_type = args.data_type #Dataset type (Sri-Lanka or Kazakhstan)
+    except:
+        print("No data type given, defaulting to Sri-Lanka")
     save_dir = args.save_path #Save path for results (also saves latest result in validation_result.png in main folder)
     single = args.single # One or many pictures
     single_picture = args.jpg #Only one picture
     amount = args.amount #If not single, gives the amount of pictures to process
     model_path = args.model #MST++ model to evaluate
     full_picture = args.full_picture #Patches or full picture
-    run(root_dir=root_dir, data_type=data_type, save_dir=save_dir, single=single, single_picture=single_picture, amount=amount, model_path=model_path, full_picture=full_picture)
-    
+    run(
+        root_dir=root_dir, 
+        data_type=data_type, 
+        save_dir=save_dir, 
+        single=single, 
+        single_picture=single_picture, 
+        amount=amount, 
+        model_path=model_path, 
+        full_picture=full_picture)

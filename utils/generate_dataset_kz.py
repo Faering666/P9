@@ -4,8 +4,7 @@ import cv2
 import numpy as np
 from collections import defaultdict
 import math
-
-BAND_SUFFIXES = ["_MS_G.TIF", "_MS_R.TIF", "_MS_RE.TIF", "_MS_NIR.TIF"]
+from pathlib import Path
 
 def patch_images(rgb_path, patch_size=256):
     """
@@ -14,13 +13,12 @@ def patch_images(rgb_path, patch_size=256):
     """
 
     # Load image and bands
-    print(rgb_path)
     rgb = rgb_path
     bands_paths = [rgb]
-    band_path = rgb_path.replace("_D.JPG", "")
-    for x in {band_path + suffix for suffix in BAND_SUFFIXES}:
+    band_path = rgb_path.replace("0.JPG", "")
+    for x in {band_path + f"{suffix}.TIF" for suffix in range(2,6)}:
         bands_paths.append(x)
-
+    bands_paths= sorted(bands_paths)
     # Find the smallest size image
     smallest_width = math.inf
     smallest_height = math.inf
@@ -77,11 +75,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     root_dir = args.data_path
-    for image_name in os.listdir(root_dir):
+    root_dir = Path(root_dir)
+    for image_name in root_dir.rglob("*0.JPG"):
         # Find the JPG rgb files in the directory 
         # Also filters weird singletons in the dataset
-        if image_name.endswith("_D.JPG"):
-            rgb_path = os.path.join(root_dir, image_name)
-            patch_images(rgb_path)
-
+        # if image_name.endswith("_D.JPG"):
+        #     rgb_path = os.path.join(root_dir, image_name)
+        patch_images(str(image_name), patch_size=args.patch_size)
     print(f"\nDone creating the dataset!")
