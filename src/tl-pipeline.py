@@ -9,7 +9,7 @@ from PIL import Image
 import numpy as np
 import eval
 import gc
-
+import dali
 import os
 from pathlib import Path
 
@@ -347,9 +347,10 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
-
+        # train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        # val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+        train_dataloader = dali(dataset=train_dataset, batch_size=4)
+        val_dataloader = dali(dataset=val_dataset, batch_size=4)
         results['stage2'] = self.run_stage_2(
             train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
             learning_rate=stage2_lr, save_dir=save_dir
