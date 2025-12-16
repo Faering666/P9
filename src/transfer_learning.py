@@ -35,6 +35,7 @@ class Opt():
         # Unfreeze one additional body module every `unfreeze_every` epochs
         self.unfreeze_every = 5
 
+
 class TransferLearning:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -46,7 +47,6 @@ class TransferLearning:
 
         # Logging
         self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
-
 
     def load_model(self):
         # Load pretrained or instantiate from scratch depending on options
@@ -78,7 +78,6 @@ class TransferLearning:
         # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
         # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
         # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
-
    
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
@@ -158,7 +157,6 @@ class TransferLearning:
         # Rebuild optimiser so it only includes trainable params
         self._rebuild_optimizer()
 
-
     def _unfreeze_step(self):
         """Unfreeze one additional body module from the frozen prefix (right-to-left).
         Returns True if something was unfrozen.
@@ -211,7 +209,7 @@ class TransferLearning:
 
     def train(self):
         print(f"[Training] Training started on {self.device} for {self.options.epochs} epochs...")
-        self.model.train()
+        self.model.train(mode=True)
 
         # Split dataset into 90% train / 10% val
         total_len = len(self.dataset)
@@ -229,7 +227,7 @@ class TransferLearning:
 
         for epoch in range(self.options.epochs):
             # ======== Training Phase ========
-            self.model.train()
+            self.model.train(mode=True)
             train_loss = 0.0
             for data in train_loader:
                 rgb = data['rgb'].to(self.device)
