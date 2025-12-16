@@ -4,7 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
-from data_carrier import load_east_kaz, load_east_kaz_patch, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, DataCarrier
+from data_carrier import load_east_kaz, load_east_kaz_patch, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, load_weedy_rice_patch, DataCarrier
 from PIL import Image
 import numpy as np
 import eval
@@ -13,37 +13,9 @@ import gc
 import os
 from pathlib import Path
 
-class Opt():
-    def __init__(self):
-        self.ckp_path = None
-        self.epochs = 100
-        self.lr = None
-        self.batch_size = 16
-        self.size = 256
-        self.bands = 4
-        # When True, instantiate a fresh MST_Plus_Plus and train from scratch
-        self.train_from_scratch = False
-        # Model architecture params for scratch training
-        self.n_feat = 4
-        self.stage = 3
-        # Progressive unfreezing options
-        # If None, will be set after model is loaded to freeze all but the last body module
-        self.progressive_unfreeze = True
-        self.freeze_body_initial = None
-        # Unfreeze one additional body module every `unfreeze_every` epochs
-        self.unfreeze_every = 5
-
 
 class TransferLearning:
     def __init__(self):
-
-        self.stage2_data_path = ""
-        self.stage2_data_type = ""
-        self.stage2_full_picture = False
-        self.stage3_data_path = ""
-        self.stage3_data_type = ""
-        self.stage3_full_picture = False
-
         # Use CUDA, MPS (Mac GPU), or CPU in that order
         if torch.cuda.is_available():
             self.device = "cuda"
@@ -52,43 +24,9 @@ class TransferLearning:
         else:
             self.device = "cpu"
         print(f"[Device] Using device: {self.device}")
-        
-
-
-        self.model = None
-        self.dataset = None
-        self.criterion = None
-        self.optimiser = None
-        self.options = Opt()
 
         # Logging
         self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
-
-    def load_model(self):
-        # Load pretrained or instantiate from scratch depending on options
-        if self.options.train_from_scratch:
-            self.model = MST_Plus_Plus(in_channels=3, out_channels=self.options.bands, n_feat=self.options.n_feat,
-                                       stage=self.options.stage).to(self.device)
-            print(
-                f"[Init] Created new MST++ model (n_feat={self.options.n_feat}, stage={self.options.stage}) for training from scratch.")
-        else:
-            # Load MST++ model checkpoint
-            self._load_pretrained(self.options.ckp_path)
-            print(f"[Loaded] MST++ model loaded from {self.options.ckp_path}.")
-
-        self.logWriter.add_hparams(
-            {
-                "lr": self.options.lr,
-                "batch_size": self.options.batch_size,
-                "epochs": self.options.epochs,
-                "bands": self.options.bands,
-
-            },
-            {}
-        )
-        # self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
-        # checkpoint = torch.load(self.options.ckp_path, map_location=self.device, weights_only=False)
-        # self.model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}, strict=False)
 
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
@@ -131,34 +69,14 @@ class TransferLearning:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
         print("DONE!")
 
-        # Free checkpoint memory
-        del checkpoint, pretrained_dict, model_state, filtered
-        self.clear_gpu_memory()
+        # NOTE: removed interactive breakpoint for automated runs
 
     def set_requires_grad(self, module, requires_grad: bool):
         """Recursively set requires_grad for all parameters in a module."""
         for p in module.parameters():
             p.requires_grad = requires_grad
 
-    def clear_gpu_memory(self):
-        """Clear GPU memory cache and run garbage collection."""
-        gc.collect()
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-        elif self.device == "mps":
-            # MPS doesn't have empty_cache, but we can still run gc
-            pass
-
     def save_model(self, save_path, stage_name, epoch=None):
-        """
-        Save model checkpoint with stage information.
-
-        Args:
-            save_path: Directory to save the model
-            stage_name: Name of the current stage (e.g., 'stage1', 'stage2', 'stage3')
-            epoch: Optional epoch number to include in filename
-        """
         os.makedirs(save_path, exist_ok=True)
 
         if epoch is not None:
@@ -192,8 +110,8 @@ class TransferLearning:
         self.set_requires_grad(self.model.conv_out, True)
 
         # Count trainable parameters
-        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = len(list(p.numel() for p in self.model.parameters() if p.requires_grad))
+        total_params = len(list(p.numel() for p in self.model.parameters()))
 
         print(f"[Freeze] Decoder only: {trainable_params}/{total_params} parameters trainable")
 
@@ -204,38 +122,21 @@ class TransferLearning:
         """
         self.set_requires_grad(self.model, True)
 
-        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        trainable_params = len(list(p.numel() for p in self.model.parameters() if p.requires_grad))
         print(f"[Unfreeze] All layers: {trainable_params} parameters trainable")
 
     def setup_optimizer(self, learning_rate):
-        """
-        Setup optimizer with the given learning rate.
-        Only includes parameters that require gradients.
-
-        Args:
-            learning_rate: Learning rate for the optimizer
-        """
         trainable_params = [p for p in self.model.parameters() if p.requires_grad]
         self.optimiser = torch.optim.Adam(trainable_params, lr=learning_rate)
         print(f"[Optimizer] Adam optimizer set with lr={learning_rate}")
 
     def train_epoch(self, dataloader):
-        """
-        Train for one epoch.
-
-        Args:
-            dataloader: DataLoader for training data
-
-        Returns:
-            Average loss for the epoch
-        """
-        self.model.train()
         total_loss = 0.0
         num_batches = 0
 
         for batch_idx, batch in enumerate(dataloader):
-            inputs = batch["rgb"].to(self.device, non_blocking=True)
-            targets = batch["ms"].to(self.device, non_blocking=True)
+            inputs = batch["rgb"].to(self.device)
+            targets = batch["ms"].to(self.device)
 
             # Forward pass
             self.optimiser.zero_grad(set_to_none=True)  # More memory efficient than zero_grad()
@@ -253,13 +154,6 @@ class TransferLearning:
             if (batch_idx + 1) % 10 == 0:
                  print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
-            # Free GPU memory
-            del inputs, targets, outputs, loss
-
-            # Periodic cache clearing to prevent fragmentation
-            if (batch_idx + 1) % 50 == 0 and self.device == "cuda":
-                torch.cuda.empty_cache()
-
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
 
         # Clear cache after epoch
@@ -269,21 +163,12 @@ class TransferLearning:
         return avg_loss
 
     def validate_epoch(self, dataloader):
-        """
-        Validate for one epoch.
-
-        Args:
-            dataloader: DataLoader for validation data
-
-        Returns:
-            Average validation loss for the epoch
-        """
-        self.model.eval()
+        self.model.eval(mode=False)
         total_loss = 0.0
         num_batches = 0
 
         with torch.no_grad():
-            for batch_idx, batch in enumerate(dataloader):
+            for batch in dataloader:
                 inputs = batch["rgb"].to(self.device, non_blocking=True)
                 targets = batch["ms"].to(self.device, non_blocking=True)
 
@@ -314,23 +199,12 @@ class TransferLearning:
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def run_stage_2(self, train_dataloader, epochs, val_dataloader=None, learning_rate=1e-5, save_dir="checkpoints", save_every=10):
-        """
-        Stage 2: Freeze all layers except decoder, train with medium-high learning rate.
-
-        Args:
-            train_dataloader: DataLoader for training data
-            epochs: Number of epochs to train
-            val_dataloader: Optional DataLoader for validation data
-            learning_rate: Learning rate (default: 1e-5)
-            save_dir: Directory to save checkpoints
-            save_every: Save checkpoint every N epochs
-
-        Returns:
-            Path to final stage 2 model
-        """
         print("\n" + "="*60)
         print("STAGE 2: Decoder Training (Frozen Encoder)")
         print("="*60)
+
+        # Set model mode train
+        self.model.train(mode=True)
 
         # Freeze all except decoder
         self.freeze_all_except_decoder()
@@ -364,27 +238,12 @@ class TransferLearning:
                     print(f"[Stage 2] New best model saved! Val Loss: {val_loss:.6f}")
             else:
                 # Log to tensorboard (training only)
+                print("[Stage 2] There is no validate dataloader")
                 self.logWriter.add_scalar("Stage2/Train_Loss", train_loss, epoch)
 
             # Save checkpoint periodically
             if (epoch + 1) % save_every == 0:
                 self.save_model(save_dir, "stage2", epoch + 1)
-
-
-            # # ======== Eval run ========
-            # if (epoch + 1) % 5 == 0:
-            #     try:
-            #         eval.run(root_dir=self.stage2_data_path, data_type=self.stage2_data_type, )
-            #         img = Image.open("validation_result.png")
-            #         img_array = np.array(img)
-            #         self.logWriter.add_image("Validation/Result", img_array, epoch, dataformats='HWC')
-            #     except Exception as e:
-            #         print(f"Error {e} at {epoch}")
-            #         pass
-
-
-
-
 
         # Save final model
         final_path = self.save_model(save_dir, "stage2")
@@ -393,29 +252,18 @@ class TransferLearning:
             print(f"\n[Stage 2] Training completed. Best Val Loss: {best_val_loss:.6f}")
             print(f"[Stage 2] Best model: {best_model_path}")
         else:
-            print(f"\n[Stage 2] Training completed.")
+            print(f"\n[Stage 2] Training completed. (No validate dataloader)")
         print(f"[Stage 2] Final model: {final_path}")
 
         return best_model_path if best_model_path else final_path
 
     def run_stage_3(self, train_dataloader, epochs, val_dataloader=None, learning_rate=1e-7, save_dir="checkpoints", save_every=10):
-        """
-        Stage 3: Unfreeze all layers, fine-tune with low learning rate.
-
-        Args:
-            train_dataloader: DataLoader for training data
-            epochs: Number of epochs to train
-            val_dataloader: Optional DataLoader for validation data
-            learning_rate: Learning rate (default: 1e-7)
-            save_dir: Directory to save checkpoints
-            save_every: Save checkpoint every N epochs
-
-        Returns:
-            Path to final stage 3 model
-        """
         print("\n" + "="*60)
         print("STAGE 3: Full Model Fine-tuning (All Layers Unfrozen)")
         print("="*60)
+
+        # Set model mode train
+        self.model.train(mode=True)
 
         # Unfreeze all layers
         self.unfreeze_all()
@@ -449,24 +297,12 @@ class TransferLearning:
                     print(f"[Stage 3] New best model saved! Val Loss: {val_loss:.6f}")
             else:
                 # Log to tensorboard (training only)
+                print("[Stage 3] There is no validate dataloader")
                 self.logWriter.add_scalar("Stage3/Train_Loss", train_loss, epoch)
 
             # Save checkpoint periodically
             if (epoch + 1) % save_every == 0:
                 self.save_model(save_dir, "stage3", epoch + 1)
-
-            # ======== Eval run ========
-
-            # if (epoch + 1) % 5 == 0:
-            #     try:
-            #         eval.run(root_dir=self.stage3_data_path, data_type=self.stage3)
-            #         img = Image.open("validation_result.png")
-            #         img_array = np.array(img)
-            #         self.logWriter.add_image("Validation/Result", img_array, epoch, dataformats='HWC')
-            #     except Exception as e:
-            #         print(f"Error {e} at {epoch}")
-            #         pass
-
 
         # Save final model
         final_path = self.save_model(save_dir, "stage3")
@@ -475,7 +311,7 @@ class TransferLearning:
             print(f"\n[Stage 3] Training completed. Best Val Loss: {best_val_loss:.6f}")
             print(f"[Stage 3] Best model: {best_model_path}")
         else:
-            print(f"\n[Stage 3] Training completed.")
+            print(f"\n[Stage 3] Training completed. (No validate dataloader)")
         print(f"[Stage 3] Final model: {final_path}")
 
         return best_model_path if best_model_path else final_path
@@ -486,35 +322,15 @@ class TransferLearning:
                           stage2_lr=1e-5,
                           stage3_lr=1e-7,
                           save_dir="checkpoints"):
-        """
-        Run the complete 3-stage transfer learning pipeline.
-
-        Args:
-            stage2_data_path: Path for stage 2 dataset
-            stage3_data_path: Path for stage 3 dataset
-            stage2_epochs: Number of epochs for stage 2
-            stage3_epochs: Number of epochs for stage 3
-            stage2_lr: Learning rate for stage 2 (default: 1e-5)
-            stage3_lr: Learning rate for stage 3 (default: 1e-7)
-            save_dir: Directory to save all checkpoints
-
-        Returns:
-            Dictionary with paths to all saved models
-
-        """
         print("\n" + "="*70)
         print(" STAGED TRANSFER LEARNING PIPELINE")
         print("="*70)
 
         results = {}
 
-        # Stage 1: Base model
-        try:
-            # Load the model (Stage 1)
-            self.load_model()
-        except Exception as e:
-            raise(f"Erro: {e}")
-            
+        # Stage 1 is loading a model, this is done in all stages so redundant
+        self._load_pretrained("src/baseline_models/mst_plus_plus.pth")
+
         # Stage 2: Decoder training
         match self.stage2_data_type:
             case "Sri-Lanka":
@@ -526,12 +342,12 @@ class TransferLearning:
                 if self.stage2_full_picture:
                     loader = load_east_kaz
                 else:
-                    loader = load_east_kaz_patch # East Kazakhstan dataset does not have patches
+                    loader = load_east_kaz_patch
             case "Weedy-Rice":
                 if self.stage2_full_picture:
                     loader = load_weedy_rice
                 else:
-                    loader = load_weedy_rice # Weedy Rice dataset does not have patches
+                    loader = load_weedy_rice_patch
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
@@ -546,21 +362,14 @@ class TransferLearning:
         train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
 
-
         results['stage2'] = self.run_stage_2(
             train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
             learning_rate=stage2_lr, save_dir=save_dir
         )
 
-        # Clean up stage 2 resources before moving to stage 3
-        del train_dataloader, val_dataloader, train_dataset, val_dataset
-        self.dataset = None
-        gc.collect()
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-            print("[Memory] Cleaned up Stage 2 resources, freed GPU memory")
-
         self._load_pretrained(results['stage2'])
+
+        self.dataset = None
 
         # Stage 3: Full fine-tuning
         match self.stage3_data_type:
@@ -578,7 +387,7 @@ class TransferLearning:
                 if self.stage3_full_picture:
                     loader = load_weedy_rice
                 else:
-                    loader = load_weedy_rice # Weedy Rice dataset does not have patches
+                    loader = load_weedy_rice_patch
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
@@ -590,8 +399,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=2, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
             train_dataloader, stage3_epochs, val_dataloader=val_dataloader,
@@ -613,12 +422,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get data paths.")
     parser.add_argument("--data_path2", default="data/")
-    parser.add_argument("--data_type2", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Kazakhstan")
+    parser.add_argument("--data_type2", help="Which dataset", default="Kazakhstan")
     parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--data_path3", default="data/")
-    parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
     parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
 
+    # Initialize the transfer learning pipeline
     tl = TransferLearning()
     args = parser.parse_args()
     tl.stage2_data_path = args.data_path2
@@ -628,23 +438,13 @@ if __name__ == "__main__":
     tl.stage3_data_type = args.data_type3
     tl.stage3_full_picture = args.full_picture3
 
-
-
-    # Initialize the transfer learning pipeline
-
-    # Configure options
-    tl.options.ckp_path = "src/baseline_models/mst_plus_plus.pth"  # Or set train_from_scratch=True
-    tl.options.train_from_scratch = False
-    tl.options.bands = 4
-    tl.options.n_feat = 4
-    tl.options.stage = 3
     # Setup criterion
     tl.criterion = torch.nn.L1Loss()
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
-        stage2_epochs=0,      # Train decoder for 50 epochs
-        stage3_epochs=2,      # Fine-tune all layers for 30 epochs
+        stage2_epochs=100,      # Train decoder for 50 epochs
+        stage3_epochs=100,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
         stage3_lr=1e-7,        # Low learning rate for stage 3
         save_dir="checkpoints"
