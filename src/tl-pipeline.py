@@ -30,6 +30,7 @@ class TransferLearning:
 
     def _load_pretrained(self, checkpoint_path):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        self.model = self.model.to(self.device, memory_format=torch.channels_last)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
         pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
         if 'model' in checkpoint:
@@ -133,8 +134,10 @@ class TransferLearning:
         num_batches = 0
 
         scaler = torch.amp.GradScaler()
+        self.optimiser.zero_grad()
 
         for batch_idx, batch in enumerate(dataloader):
+            torch.cuda.empty_cache()
             inputs = batch["rgb"].to(self.device)
             targets = batch["ms"].to(self.device)
 
@@ -387,7 +390,7 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
@@ -414,7 +417,7 @@ if __name__ == "__main__":
     parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
     parser.add_argument("--data_path3", default="data/")
     parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
-    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
+    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
 
     # Initialize the transfer learning pipeline
     tl = TransferLearning()
@@ -431,7 +434,7 @@ if __name__ == "__main__":
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
-        stage2_epochs=5,      # Train decoder for 50 epochs
+        stage2_epochs=0,      # Train decoder for 50 epochs
         stage3_epochs=5,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
         stage3_lr=1e-7,        # Low learning rate for stage 3
