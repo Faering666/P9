@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import argparse
 from pathlib import Path
 from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, load_weedy_rice, DataCarrier
-
+import cv2
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu" # Recommended when running full pictures to avoid OOM errors
@@ -128,13 +128,10 @@ def run(root_dir="data/",
         plt.close()
 
         for i in range(4):
-            _, axes = plt.subplots(1,  1, figsize=(14,5))
-            axes.imshow(pred[i], cmap='gray')
-            axes.set_title(f"Pred Band {i+1}")
-            plt.tight_layout()
-            file_name = f"validation_result_{str(index)}_{i+1}_.png"
-            plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
-            plt.close()
+            breakpoint()
+            img = (pred[i] * 255).clip(0, 255).astype(np.uint8)
+            file_name = f"validation_result_{str(index)}_{i+1}_.JPG"    
+            cv2.imwrite(output_dir / file_name, img)
 
         
         print(f"Saved visualization to {file_name}")
