@@ -44,10 +44,11 @@ class DataCarrier(Dataset):
     """
     BAND_ORDER = ["G", "R", "RE", "NIR"]
 
-    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type: str = "Sri-Lanka"):
+    def __init__(self, root_dir: str, load_data: Callable[[Path], list[Path]], data_type: str = "Sri-Lanka", true_picture=False):
         self.root_dir = Path(root_dir)
         self.bases = load_data(self.root_dir)
         self.full = True
+        self.true_picture=true_picture
         match load_data.__name__:
             case "load_sri_lanka_full":
                 self.data_type = "Sri-Lanka"
@@ -95,7 +96,8 @@ class DataCarrier(Dataset):
 
         # Load rgb
         rgb = self._load_and_normalize(base)  
-        rgb = cv2.resize(rgb, (256, 256), interpolation=cv2.INTER_AREA)
+        if not self.true_picture:
+            rgb = cv2.resize(rgb, (256, 256), interpolation=cv2.INTER_AREA)
         rgb = rgb[:,:,::-1].copy() # bgr -> rgb
 
         # Load ms bands in correct order (G, R, RE, NIR)
@@ -105,7 +107,8 @@ class DataCarrier(Dataset):
                 for suffix in self.BAND_ORDER:
                     path = os.path.join(base.replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
                     band = self._load_and_normalize(path)
-                    band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
+                    if not self.true_picture:
+                        band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
                     bands.append(band)
                 target = np.stack(bands, axis=-1)
 
@@ -114,14 +117,16 @@ class DataCarrier(Dataset):
                     for x in range(2,6):
                         path = base.replace("0.JPG", f"{x}.TIF")
                         band = self._load_and_normalize(path)
-                        band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
+                        if not self.true_picture:
+                            band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
                         bands.append(band)
                     target = np.stack(bands, axis=-1)
                 else:
                     for x in range(2,6):
                         path = base.replace("0_", f"{x}_").replace(".JPG", ".TIF")
                         band = self._load_and_normalize(path)
-                        band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
+                        if not self.true_picture:
+                            band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
                         bands.append(band)
                     target = np.stack(bands, axis=-1)
             case "Weedy-Rice":
@@ -129,7 +134,8 @@ class DataCarrier(Dataset):
                     for suffix in self.BAND_ORDER:
                         path = os.path.join(base.replace(".JPG", f"_{suffix}.TIF"))
                         band = self._load_and_normalize(path)
-                        band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
+                        if not self.true_picture:
+                            band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
                         if band.ndim == 3:
                             band = band[:,:,0]
                         bands.append(band)
@@ -137,7 +143,8 @@ class DataCarrier(Dataset):
                     for suffix in self.BAND_ORDER:
                         path = os.path.join(base.replace(f".JPG", ".TIF").replace("m_", f"m_{suffix}_"))
                         band = self._load_and_normalize(path)
-                        band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
+                        if not self.true_picture:
+                            band = cv2.resize(band, (256, 256), interpolation=cv2.INTER_AREA)
                         if band.ndim == 3:
                             band = band[:,:,0]
                         bands.append(band)

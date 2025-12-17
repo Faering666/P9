@@ -54,35 +54,27 @@ def run(root_dir="data/",
     model.load_state_dict(filtered, strict=False)
     model.eval()
     
-    if single:
-        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type)
-    elif data_type == "Kazakhstan":
-        dataset = DataCarrier(root_dir, load_east_kaz)
-    elif full_picture:
-        dataset = DataCarrier(root_dir, load_sri_lanka_full)
-    else:
-        dataset = DataCarrier(root_dir, load_sri_lanka_patch)
 
     if single:
         # Single picture does not care for full or patch
-        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type)
+        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type, true_picture=True)
     else:
         match data_type:
             case "Sri-Lanka":
                 if full_picture:
-                    dataset = DataCarrier(root_dir, load_sri_lanka_full)
+                    dataset = DataCarrier(root_dir, load_sri_lanka_full, true_picture=True)
                 else:
-                    dataset = DataCarrier(root_dir, load_sri_lanka_patch)
+                    dataset = DataCarrier(root_dir, load_sri_lanka_patch, true_picture=True)
             case "Kazakhstan":
                 if full_picture:
-                    dataset = DataCarrier(root_dir, load_east_kaz)
+                    dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True)
                 else:
-                    dataset = DataCarrier(root_dir, load_east_kaz) # East Kazakhstan dataset does not have patches
+                    dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True) # East Kazakhstan dataset does not have patches
             case "Weedy-Rice":
                 if full_picture:
-                    dataset = DataCarrier(root_dir, load_weedy_rice)
+                    dataset = DataCarrier(root_dir, load_weedy_rice, true_picture=True)
                 else:
-                    dataset = DataCarrier(root_dir, load_weedy_rice) # Weedy Rice dataset does not have patches
+                    dataset = DataCarrier(root_dir, load_weedy_rice, true_picture=True) # Weedy Rice dataset does not have patches
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
