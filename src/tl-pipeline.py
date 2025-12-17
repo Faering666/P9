@@ -185,8 +185,8 @@ class TransferLearning:
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
 
-    def load_dataset(self, root_dir, loader):
-        self.dataset = DataCarrier(root_dir, loader)
+    def load_dataset(self, root_dir, loader, true_picture=False):
+        self.dataset = DataCarrier(root_dir, loader, true_picture=true_picture)
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def run_stage_2(self, train_dataloader, epochs, val_dataloader=None, learning_rate=1e-5, save_dir="checkpoints", save_every=10):
@@ -350,8 +350,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=4, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=6, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
 
         results['stage2'] = self.run_stage_2(
             train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
@@ -391,7 +391,7 @@ class TransferLearning:
 
         # Prepare your dataloaders
         train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
             train_dataloader, stage3_epochs, val_dataloader=val_dataloader,
@@ -434,8 +434,8 @@ if __name__ == "__main__":
 
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
-        stage2_epochs=0,      # Train decoder for 50 epochs
-        stage3_epochs=5,      # Fine-tune all layers for 30 epochs
+        stage2_epochs=20,      # Train decoder for 50 epochs
+        stage3_epochs=20,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
         stage3_lr=1e-7,        # Low learning rate for stage 3
         save_dir="checkpoints"
