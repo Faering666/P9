@@ -1,4 +1,5 @@
 import argparse
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -7,7 +8,7 @@ import sys
 
 def find_image_files(rgb_path):
     base = rgb_path[:-4]
-    suffix = ".TIF" # TODO: Make dynamic
+    suffix = rgb_path[-4:] # TODO: Make dynamic
     g_path = base + "_g" + suffix
     r_path = base + "_r" + suffix
     re_path = base + "_re" + suffix
@@ -21,19 +22,22 @@ def find_image_files(rgb_path):
         "nir": nir_path
     }
 
-def load_image_as_array(path):
+def load_image_as_array(path: str, resize: bool = False, resize_size: tuple = (512, 480)):
     img = Image.open(path)
-    return np.array(img).astype(np.float32)
+    if resize:
+        img = np.array(img)
+        img = cv2.resize(img, resize_size, interpolation=cv2.INTER_CUBIC)
+    return img.astype(np.float32)
 
 def save_array_as_image(array, path):
     img = Image.fromarray(np.clip(array, 0, 255).astype(np.uint8))
     img.save(path)
 
 def ndvi_error_map(pred, gt):
-    pred_nir = load_image_as_array(pred_files["nir"])
-    pred_r = load_image_as_array(pred_files["r"])
-    gt_nir = load_image_as_array(gt_files["nir"])
-    gt_r = load_image_as_array(gt_files["r"])
+    pred_nir = load_image_as_array(pred_files["nir"], True, (1280, 720))
+    pred_r = load_image_as_array(pred_files["r"], True, (1280, 720))
+    gt_nir = load_image_as_array(gt_files["nir"], True, (1280, 720))
+    gt_r = load_image_as_array(gt_files["r"], True, (1280, 720))
     
     pred = (pred_nir - pred_r) / (pred_nir + pred_r + 1e-6)
     gt = (gt_nir - gt_r) / (gt_nir + gt_r + 1e-6)            

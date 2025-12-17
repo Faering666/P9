@@ -19,3 +19,13 @@ To use, run the command:
 python utils/align_images.py --input_folder=/path/to/dataset [--output_folder=/path/to/save/aligned_images]
 ```
 By default the aligned images will be saved to data/aligned_images if nothing else is specified.
+
+## Error maps
+Script to generate the error maps given predicionts images and ground-truth images.
+```bash
+python3 utils/error_maps.py --pred_path=<path/to/pred.SUFFIX> --gt_path=<path/to/groud_truth.SUFFIX> [--error_map_type=<all,ndvi,ndre>]
+```
+
+- `--pred_path` is the path to the prediction files. If path is `data/pred.jpg` it assumes all the prediction files are .jpg and follows the schema `_g.jpg`, `_r.jpg`, `_re.jpg`, `_nir.jpg`
+- `--gt_path` follows the same logic as `--pred_path`.
+
