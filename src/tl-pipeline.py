@@ -69,6 +69,34 @@ class TransferLearning:
         if skipped:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
         print("DONE!")
+    
+    def load_mstpp(self, learning_rate):
+        self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        self.model = self.model.to(self.device, memory_format=torch.channels_last)
+        
+        self.setup_optimizer(learning_rate)
+        model_state = self.model.state_dict()
+        filtered = {}
+        skipped = []
+
+        for k, v in pretrained_dict.items():
+            key = k
+            if key.startswith("module."):
+                key = key[len("module."):]
+
+            if key in model_state:
+                if model_state[key].shape == v.shape:
+                    filtered[key] = v
+                else:
+                    print(f"[Shape mismatch] {key}: model={model_state[key].shape}, pretrained={v.shape}")
+                    skipped.append(key)
+            else:
+                skipped.append(key)
+
+        # Update and load
+        model_state.update(filtered)
+        self.model.load_state_dict(model_state)
+
 
     def set_requires_grad(self, module, requires_grad: bool):
         """Recursively set requires_grad for all parameters in a module."""
@@ -296,9 +324,59 @@ class TransferLearning:
 
         return best_model_path if best_model_path else final_path
 
+    def train_from_scratch(self, train_dataloader, epochs, val_dataloader=None, learning_rate=1e-5, save_dir="checkpoints", save_every=10):
+        print("\n" + "="*60)
+        print("STAGE 3: Full Model Fine-tuning (All Layers Unfrozen)")
+        print("="*60)
+
+        # Set model mode train
+        self.model.train(mode=True)
+
+        # Unfreeze all layers
+        self.unfreeze_all()
+
+        # Track best validation loss
+        best_val_loss = float('inf')
+        best_model_path = None
+
+        # Training loop
+        for epoch in range(epochs):
+            print(f"\n[Stage 1] Epoch {epoch + 1}/{epochs}")
+            train_loss = self.train_epoch(train_dataloader)
+            print(f"[Stage 1] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
+
+            # Validation
+            if val_dataloader is not None:
+                val_loss = self.validate_epoch(val_dataloader)
+                print(f"[Stage 1] Epoch {epoch + 1} - Val Loss: {val_loss:.6f}")
+
+                # Log to tensorboard
+                self.logWriter.add_scalar("Stage1/Train_Loss", train_loss, epoch)
+                self.logWriter.add_scalar("Stage1/Val_Loss", val_loss, epoch)
+
+                # Save best model when validation loss improves
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_model_path = self.save_model(save_dir, "stage1_best")
+                    print(f"[Stage 1] New best model saved! Val Loss: {val_loss:.6f}")
+            else:
+                # Log to tensorboard (training only)
+                print("[Stage 1] There is no validate dataloader")
+                self.logWriter.add_scalar("Stage1/Train_Loss", train_loss, epoch)
+
+            # Save checkpoint periodically
+            if (epoch + 1) % save_every == 0:
+                self.save_model(save_dir, "stage1", epoch + 1)
+
+        # Save final model
+        final_path = self.save_model(save_dir, "stage1")
+
+
     def run_full_pipeline(self,
-                          stage2_epochs,
-                          stage3_epochs,
+                          stage1_epochs=100,
+                          stage1_lr=1e-5,
+                          stage2_epochs=100,
+                          stage3_epochs=100,
                           stage2_lr=1e-5,
                           stage3_lr=1e-7,
                           save_dir="checkpoints"):
@@ -309,7 +387,82 @@ class TransferLearning:
         results = {}
 
         # Stage 1 is loading a model, this is done in all stages so redundant
-        
+        match self.stage1_data_type:
+            case "Sri-Lanka":
+                if self.stage1_full_picture:
+                    loader =  load_sri_lanka_full
+                else:
+                    loader = load_sri_lanka_patch
+            case "Kazakhstan":
+                if self.stage1_full_picture:
+                    loader = load_east_kaz
+                else:
+                    loader = load_east_kaz_patch
+            case "Weedy-Rice":
+                if self.stage1_full_picture:
+                    loader = load_weedy_rice
+                else:
+                    loader = load_weedy_rice_patch
+            case _:
+                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                breakpoint() #Dummefejl
+        self.load_dataset(root_dir=self.stage1_data_path, loader=loader)
+        self.load_mstpp(learning_rate=stage1_lr)
+
+        total_len = len(self.dataset)
+        val_len = max(1, int(0.1 * total_len))
+        train_len = total_len - val_len
+        train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
+
+        # Prepare your dataloaders
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=6, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
+
+        results['stage1'] = self.train_from_scratch(
+            train_dataloader, stage1_epochs, val_dataloader=val_dataloader,
+            learning_rate=stage1_lr, save_dir=save_dir
+        )
+
+       # Stage 2: Decoder training
+        match self.stage2_data_type:
+            case "Sri-Lanka":
+                if self.stage2_full_picture:
+                    loader =  load_sri_lanka_full
+                else:
+                    loader = load_sri_lanka_patch
+            case "Kazakhstan":
+                if self.stage2_full_picture:
+                    loader = load_east_kaz
+                else:
+                    loader = load_east_kaz_patch
+            case "Weedy-Rice":
+                if self.stage2_full_picture:
+                    loader = load_weedy_rice
+                else:
+                    loader = load_weedy_rice_patch
+            case _:
+                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                breakpoint() #Dummefejl
+        self.load_dataset(root_dir=self.stage2_data_path, loader=loader)
+        self._load_pretrained("src/baseline_models/mst_plus_plus.pth", learning_rate=stage2_lr)
+
+        total_len = len(self.dataset)
+        val_len = max(1, int(0.1 * total_len))
+        train_len = total_len - val_len
+        train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
+
+        # Prepare your dataloaders
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=6, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
+
+        results['stage2'] = self.run_stage_2(
+            train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
+            learning_rate=stage2_lr, save_dir=save_dir
+        )
+
+       
+
+
         # Stage 2: Decoder training
         match self.stage2_data_type:
             case "Sri-Lanka":
@@ -401,16 +554,22 @@ class TransferLearning:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get data paths.")
+    parser.add_argument("--data_path1", default="data/")
+    parser.add_argument("--data_type1", help="Which dataset", default="Kazakhstan")
+    parser.add_argument("--full_picture1", type=bool, help="Use full pictures or patches, default=False/Patches", action=argparse.BooleanOptionalAction)
     parser.add_argument("--data_path2", default="data/")
     parser.add_argument("--data_type2", help="Which dataset", default="Kazakhstan")
-    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
+    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", action=argparse.BooleanOptionalAction)
     parser.add_argument("--data_path3", default="data/")
     parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
-    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
+    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", action=argparse.BooleanOptionalAction)
 
     # Initialize the transfer learning pipeline
     tl = TransferLearning()
     args = parser.parse_args()
+    tl.stage1_data_path = args.data_path1
+    tl.stage1_data_type = args.data_type1
+    tl.stage1_full_picture = args.full_picture1
     tl.stage2_data_path = args.data_path2
     tl.stage2_data_type = args.data_type2
     tl.stage2_full_picture = args.full_picture2
@@ -422,6 +581,8 @@ if __name__ == "__main__":
     tl.criterion = torch.nn.L1Loss()
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
+        stage1_epochs=100,
+        stage1_lr=1e-5,
         stage2_epochs=100,      # Train decoder for 50 epochs
         stage3_epochs=100,      # Fine-tune all layers for 30 epochs
         stage2_lr=1e-5,        # Medium-high learning rate for stage 2
