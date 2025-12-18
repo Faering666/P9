@@ -82,6 +82,6 @@ if __name__ == "__main__":
         # Also filters weird singletons in the dataset
         if image_name.endswith(".JPG"):
             rgb_path = os.path.join(root_dir, image_name)
-            patch_images(rgb_path)
+            patch_images(rgb_path, args.patch_size)
 
     print(f"\nDone creating the dataset!")

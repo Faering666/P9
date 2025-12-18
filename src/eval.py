@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import argparse
 from pathlib import Path
 from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, load_weedy_rice, DataCarrier
-
+import cv2
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu" # Recommended when running full pictures to avoid OOM errors
@@ -21,8 +21,8 @@ def run(root_dir="data/",
         model_path="model_final.pkl",
         full_picture=False):
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
-    ouput_dir= Path(save_dir)
-    ouput_dir.mkdir(parents=True, exist_ok=True)
+    output_dir= Path(save_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     ckpt = torch.load(model_path, map_location=device)
     # Handle different checkpoint formats
@@ -54,35 +54,27 @@ def run(root_dir="data/",
     model.load_state_dict(filtered, strict=False)
     model.eval()
     
-    if single:
-        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type)
-    elif data_type == "Kazakhstan":
-        dataset = DataCarrier(root_dir, load_east_kaz)
-    elif full_picture:
-        dataset = DataCarrier(root_dir, load_sri_lanka_full)
-    else:
-        dataset = DataCarrier(root_dir, load_sri_lanka_patch)
 
     if single:
         # Single picture does not care for full or patch
-        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type)
+        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type, true_picture=True)
     else:
         match data_type:
             case "Sri-Lanka":
                 if full_picture:
-                    dataset = DataCarrier(root_dir, load_sri_lanka_full)
+                    dataset = DataCarrier(root_dir, load_sri_lanka_full, true_picture=True)
                 else:
-                    dataset = DataCarrier(root_dir, load_sri_lanka_patch)
-            case "Kazakhstan":
+                    dataset = DataCarrier(root_dir, load_sri_lanka_patch, true_picture=True)
+            case "Kazahkstan":
                 if full_picture:
-                    dataset = DataCarrier(root_dir, load_east_kaz)
+                    dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True)
                 else:
-                    dataset = DataCarrier(root_dir, load_east_kaz) # East Kazakhstan dataset does not have patches
+                    dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True) # East Kazakhstan dataset does not have patches
             case "Weedy-Rice":
                 if full_picture:
-                    dataset = DataCarrier(root_dir, load_weedy_rice)
+                    dataset = DataCarrier(root_dir, load_weedy_rice, true_picture=True)
                 else:
-                    dataset = DataCarrier(root_dir, load_weedy_rice) # Weedy Rice dataset does not have patches
+                    dataset = DataCarrier(root_dir, load_weedy_rice, true_picture=True) # Weedy Rice dataset does not have patches
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
@@ -132,17 +124,13 @@ def run(root_dir="data/",
         plt.tight_layout()
         file_name = f"validation_result_{str(index)}.png"
         plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
-        plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
+        plt.savefig(output_dir / file_name, dpi=150, bbox_inches="tight")
         plt.close()
 
         for i in range(4):
-            _, axes = plt.subplots(1,  1, figsize=(14,5))
-            axes.imshow(pred[i], cmap='gray')
-            axes.set_title(f"Pred Band {i+1}")
-            plt.tight_layout()
-            file_name = f"validation_result_{str(index)}_{i+1}_.png"
-            plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
-            plt.close()
+            img = (pred[i] * 255).clip(0, 255).astype(np.uint8)
+            file_name = f"validation_result_{str(index)}_{i+1}_.JPG"    
+            cv2.imwrite(output_dir / file_name, img)
 
         
         print(f"Saved visualization to {file_name}")
@@ -156,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
     parser.add_argument("--save_path", help="Name of save directory", default="results")
-    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazakhstan", "Weedy-Rice"], help="Which dataset default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazahkstan", "Weedy-Rice"], help="Which dataset default=Sri-Lanka", default="Sri-Lanka")
     parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", default="model_final.pkl")
     args = parser.parse_args()
     root_dir = args.data_path # Root directory of data (data/)

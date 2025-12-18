@@ -28,10 +28,10 @@ class TransferLearning:
         # Logging
         self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
 
-    def _load_pretrained(self, checkpoint_path):
+    def _load_pretrained(self, checkpoint_path, learning_rate):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        self.model = self.model.to(self.device, memory_format=torch.channels_last)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
-        pretrained_dict = checkpoint.get("model_state_dict", checkpoint)
         if 'model' in checkpoint:
             pretrained_dict = checkpoint['model']
         elif 'model_state_dict' in checkpoint:
@@ -40,7 +40,8 @@ class TransferLearning:
             pretrained_dict = checkpoint["state_dict"]
         else:
             pretrained_dict = checkpoint
-
+        
+        self.setup_optimizer(learning_rate)
         model_state = self.model.state_dict()
         filtered = {}
         skipped = []
@@ -69,8 +70,6 @@ class TransferLearning:
             print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
         print("DONE!")
 
-        # NOTE: removed interactive breakpoint for automated runs
-
     def set_requires_grad(self, module, requires_grad: bool):
         """Recursively set requires_grad for all parameters in a module."""
         for p in module.parameters():
@@ -88,7 +87,7 @@ class TransferLearning:
 
         checkpoint = {
             'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimiser.state_dict() if self.optimiser else None,
+            'optimizer_state_dict': self.optimizer.state_dict() if self.optimizer else None,
             'stage': stage_name,
             'epoch': epoch
         }
@@ -116,39 +115,42 @@ class TransferLearning:
         print(f"[Freeze] Decoder only: {trainable_params}/{total_params} parameters trainable")
 
     def unfreeze_all(self):
-        """
-        Unfreeze all layers in the model.
-        This is used in Stage 3 of transfer learning.
-        """
         self.set_requires_grad(self.model, True)
-
         trainable_params = len(list(p.numel() for p in self.model.parameters() if p.requires_grad))
         print(f"[Unfreeze] All layers: {trainable_params} parameters trainable")
 
     def setup_optimizer(self, learning_rate):
-        trainable_params = [p for p in self.model.parameters() if p.requires_grad]
-        self.optimiser = torch.optim.Adam(trainable_params, lr=learning_rate)
+        self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=learning_rate)
         print(f"[Optimizer] Adam optimizer set with lr={learning_rate}")
 
     def train_epoch(self, dataloader):
         total_loss = 0.0
         num_batches = 0
 
+        scaler = torch.amp.GradScaler()
+        self.optimizer.zero_grad()
+
         for batch_idx, batch in enumerate(dataloader):
+            torch.cuda.empty_cache()
             inputs = batch["rgb"].to(self.device)
             targets = batch["ms"].to(self.device)
 
             # Forward pass
-            self.optimiser.zero_grad()
-            outputs = self.model(inputs)
-            loss = self.criterion(outputs, targets)
+            self.optimizer.zero_grad()
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
 
             # Backward pass
-            loss.backward()
-            self.optimiser.step()
+            scaler.scale(loss).backward()
+            
+            scaler.step(self.optimizer)
+            #self.optimiser.step()
 
             total_loss += loss.item()
             num_batches += 1
+
+            scaler.update()
 
             if (batch_idx + 1) % 10 == 0:
                  print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
@@ -157,27 +159,28 @@ class TransferLearning:
         return avg_loss
 
     def validate_epoch(self, dataloader):
-        self.model.eval(mode=False)
+        self.model.eval()
         total_loss = 0.0
         num_batches = 0
 
         with torch.no_grad():
-            for batch in dataloader:
-                inputs = batch["rgb"].to(self.device, non_blocking=True)
-                targets = batch["ms"].to(self.device, non_blocking=True)
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                for batch in dataloader:
+                    inputs = batch["rgb"].to(self.device, non_blocking=True)
+                    targets = batch["ms"].to(self.device, non_blocking=True)
 
-                # Forward pass only
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, targets)
+                    # Forward pass only
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, targets)
 
-                total_loss += loss.item()
-                num_batches += 1
+                    total_loss += loss.item()
+                    num_batches += 1
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
 
-    def load_dataset(self, root_dir, loader):
-        self.dataset = DataCarrier(root_dir, loader)
+    def load_dataset(self, root_dir, loader, true_picture=False):
+        self.dataset = DataCarrier(root_dir, loader, true_picture=true_picture)
         print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def run_stage_2(self, train_dataloader, epochs, val_dataloader=None, learning_rate=1e-5, save_dir="checkpoints", save_every=10):
@@ -191,8 +194,6 @@ class TransferLearning:
         # Freeze all except decoder
         self.freeze_all_except_decoder()
 
-        # Setup optimizer with specified learning rate
-        self.setup_optimizer(learning_rate)
 
         # Track best validation loss
         best_val_loss = float('inf')
@@ -249,9 +250,6 @@ class TransferLearning:
 
         # Unfreeze all layers
         self.unfreeze_all()
-
-        # Setup optimizer with lower learning rate
-        self.setup_optimizer(learning_rate)
 
         # Track best validation loss
         best_val_loss = float('inf')
@@ -311,8 +309,7 @@ class TransferLearning:
         results = {}
 
         # Stage 1 is loading a model, this is done in all stages so redundant
-        self._load_pretrained("src/baseline_models/mst_plus_plus.pth")
-
+        
         # Stage 2: Decoder training
         match self.stage2_data_type:
             case "Sri-Lanka":
@@ -333,23 +330,24 @@ class TransferLearning:
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
-        tl.load_dataset(root_dir=self.stage2_data_path, loader=loader)
+        self.load_dataset(root_dir=self.stage2_data_path, loader=loader)
+        self._load_pretrained("src/baseline_models/mst_plus_plus.pth", learning_rate=stage2_lr)
 
-        total_len = len(tl.dataset)
+        total_len = len(self.dataset)
         val_len = max(1, int(0.1 * total_len))
         train_len = total_len - val_len
-        train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
+        train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=6, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False)
 
         results['stage2'] = self.run_stage_2(
             train_dataloader, stage2_epochs, val_dataloader=val_dataloader,
             learning_rate=stage2_lr, save_dir=save_dir
         )
 
-        self._load_pretrained(results['stage2'])
+        self._load_pretrained(results['stage2'], learning_rate=stage3_lr)
 
         self.dataset = None
 
@@ -373,16 +371,16 @@ class TransferLearning:
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
-        tl.load_dataset(self.stage3_data_path, loader=loader)
+        self.load_dataset(self.stage3_data_path, loader=loader)
 
-        total_len = len(tl.dataset)
+        total_len = len(self.dataset)
         val_len = max(1, int(0.1 * total_len))
         train_len = total_len - val_len
-        train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
+        train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
             train_dataloader, stage3_epochs, val_dataloader=val_dataloader,
@@ -405,10 +403,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Get data paths.")
     parser.add_argument("--data_path2", default="data/")
     parser.add_argument("--data_type2", help="Which dataset", default="Kazakhstan")
-    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
+    parser.add_argument("--full_picture2", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
     parser.add_argument("--data_path3", default="data/")
     parser.add_argument("--data_type3", help="Which dataset Sri-Lanka or Kazakhstan, default=Sri-Lanka", default="Weedy-Rice")
-    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
+    parser.add_argument("--full_picture3", type=bool, help="Use full pictures or patches, default=False/Patches", default=True)
 
     # Initialize the transfer learning pipeline
     tl = TransferLearning()
@@ -422,7 +420,6 @@ if __name__ == "__main__":
 
     # Setup criterion
     tl.criterion = torch.nn.L1Loss()
-
     # Run the full 3-stage pipeline with validation
     results = tl.run_full_pipeline(
         stage2_epochs=100,      # Train decoder for 50 epochs
@@ -436,5 +433,39 @@ if __name__ == "__main__":
     # tl.run_stage_1(save_dir="checkpoints")
     # tl.run_stage_2(train_dataloader, epochs=50, val_dataloader=val_dataloader,
     #                learning_rate=1e-5, save_dir="checkpoints")
-    # tl.run_stage_3(train_dataloader, epochs=30, val_dataloader=val_dataloader,
+
+    # Stage 3: Full fine-tuning
+    # tl._load_pretrained("checkpoints/hyggestuen-17-15-25/stage2_final.pth")
+
+    # match tl.stage3_data_type:
+    #     case "Sri-Lanka":
+    #         if tl.stage3_full_picture:
+    #             loader =  load_sri_lanka_full
+    #         else:
+    #             loader = load_sri_lanka_patch
+    #     case "Kazakhstan":
+    #         if tl.stage3_full_picture:
+    #             loader = load_east_kaz
+    #         else:
+    #             loader = load_east_kaz_patch
+    #     case "Weedy-Rice":
+    #         if tl.stage3_full_picture:
+    #             loader = load_weedy_rice
+    #         else:
+    #             loader = load_weedy_rice_patch
+    #     case _:
+    #         print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+    #         breakpoint() #Dummefejl
+    # tl.load_dataset(tl.stage3_data_path, loader=loader)
+
+    # total_len = len(tl.dataset)
+    # val_len = max(1, int(0.1 * total_len))
+    # train_len = total_len - val_len
+    # train_dataset, val_dataset = random_split(tl.dataset, [train_len, val_len])
+
+    # # Prepare your dataloaders
+    # train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
+    # val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+
+    # tl.run_stage_3(train_dataloader, epochs=20, val_dataloader=val_dataloader,
     #                learning_rate=1e-7, save_dir="checkpoints")
