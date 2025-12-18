@@ -4,7 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
-from data_carrier import load_east_kaz, load_east_kaz_patch, load_sri_lanka_patch, load_sri_lanka_full, load_weedy_rice, load_weedy_rice_patch, DataCarrier
+from data_carrier import load_east_kaz, load_sri_lanka, load_weedy_rice, DataCarrier
 from PIL import Image
 import numpy as np
 import eval
