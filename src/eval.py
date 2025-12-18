@@ -21,8 +21,8 @@ def run(root_dir="data/",
         model_path="model_final.pkl",
         full_picture=False):
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
-    ouput_dir= Path(save_dir)
-    ouput_dir.mkdir(parents=True, exist_ok=True)
+    output_dir= Path(save_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     ckpt = torch.load(model_path, map_location=device)
     # Handle different checkpoint formats
@@ -65,7 +65,7 @@ def run(root_dir="data/",
                     dataset = DataCarrier(root_dir, load_sri_lanka_full, true_picture=True)
                 else:
                     dataset = DataCarrier(root_dir, load_sri_lanka_patch, true_picture=True)
-            case "Kazakhstan":
+            case "Kazahkstan":
                 if full_picture:
                     dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True)
                 else:
@@ -124,11 +124,10 @@ def run(root_dir="data/",
         plt.tight_layout()
         file_name = f"validation_result_{str(index)}.png"
         plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
-        plt.savefig(ouput_dir / file_name, dpi=150, bbox_inches="tight")
+        plt.savefig(output_dir / file_name, dpi=150, bbox_inches="tight")
         plt.close()
 
         for i in range(4):
-            breakpoint()
             img = (pred[i] * 255).clip(0, 255).astype(np.uint8)
             file_name = f"validation_result_{str(index)}_{i+1}_.JPG"    
             cv2.imwrite(output_dir / file_name, img)
@@ -145,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
     parser.add_argument("--save_path", help="Name of save directory", default="results")
-    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazakhstan", "Weedy-Rice"], help="Which dataset default=Sri-Lanka", default="Sri-Lanka")
+    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazahkstan", "Weedy-Rice"], help="Which dataset default=Sri-Lanka", default="Sri-Lanka")
     parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", default="model_final.pkl")
     args = parser.parse_args()
     root_dir = args.data_path # Root directory of data (data/)
