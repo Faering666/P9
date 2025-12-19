@@ -45,7 +45,8 @@ from typing import Callable
 from torch.utils.data import Dataset
 
 # region Loaders
-"""Loader creation guidelines:
+"""
+Loader creation guidelines:
 
 Each loader function should:
 1. Accept a Path to a directory containing the dataset
