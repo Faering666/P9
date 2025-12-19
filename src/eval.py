@@ -63,11 +63,11 @@ def run(root_dir="data/",
     else:
         match data_type:
             case "Sri-Lanka":
-                dataset = DataCarrier(Path(root_dir), load_sri_lanka, resize=True)
+                dataset = DataCarrier(Path(root_dir), load_sri_lanka, resize=False)
             case "Kazahkstan":
-                dataset = DataCarrier(Path(root_dir), load_east_kaz, resize=True)
+                dataset = DataCarrier(Path(root_dir), load_east_kaz, resize=False)
             case "Weedy-Rice":
-                dataset = DataCarrier(Path(root_dir), load_weedy_rice, resize=True)
+                dataset = DataCarrier(Path(root_dir), load_weedy_rice, resize=False)
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl

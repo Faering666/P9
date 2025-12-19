@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 from typing import Callable, Any
+
+import cv2
+import numpy as np
 from metric_calculator import MetricCalculator
 
 class Evaluator:
@@ -82,6 +85,8 @@ class Evaluator:
 
             pred_cube = p_info["cube"]
             gt_cube = g_info["cube"]
+            breakpoint()
+            gt_cube = cv2.resize(gt_cube, (256, 256), interpolation=cv2.INTER_AREA)
 
             metrics = self.metric_calculator.compute(pred_cube, gt_cube)
 

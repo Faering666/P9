@@ -16,6 +16,17 @@ A loader should return a dictionary of dictionaries with layout:
 }
 """
 
+def get_loader(data_type: str, pred_path: str, truth_path: str):
+    match data_type:
+        case "Sri-Lanka":
+            return make_sri_lanka_npy_loader(pred_path), make_sri_lanka_loader(truth_path)
+        case "Kazakhstan":
+            return make_kazakhstan_npy_loader(pred_path), make_kazakhstan_loader(truth_path)
+        case "Weedy-Rice":
+            return make_weedy_rice_npy_tif_loader(pred_path), make_weedy_rice_tif_loader(truth_path)
+        case _: # default sri-lanka
+            return make_sri_lanka_npy_loader(pred_path), make_sri_lanka_loader(truth_path)
+
 def make_npy_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
     """
     Create a zero-arg loader that recursively scans `root_dir` for .npy files,
@@ -203,4 +214,95 @@ def make_weedy_rice_tif_loader(root_dir: str) -> Callable[[], dict[str, dict[str
 
     return loader
 
+def make_weedy_rice_npy_tif_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
+    pass
+
+def make_sri_lanka_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
+    root = Path(root_dir)
+    band_order = ["G", "R", "RE", "NIR"]
+
+    id_pattern = re.compile(r"^(.*)_MS_([A-Za-z0-9]+)$")
+    
+    def loader() -> dict[str, dict[str, str]]:
+        grouped: dict[str, dict[str, Path]] = {}
+
+        for tif_path in root.rglob("*"):
+            if not tif_path.is_file():
+                continue
+            if tif_path.suffix != ".TIF":
+                continue
+            
+            stem = tif_path.stem
+            
+            m = id_pattern.match(stem)
+            if m is None:
+                # Not matching the format
+                continue
+            
+            num_str, spectrum = m.groups()
+            spectrum = spectrum.upper()
+            
+            if spectrum not in band_order:
+                # Unknown spectrum
+                continue
+            
+            grouped.setdefault(num_str, {})[spectrum] = tif_path
                 
+        out: dict[str, dict[str, Any]] = {}
+
+        for true_id, spec_map in grouped.items():
+            if not all(b in spec_map for b in band_order):
+                # Only keep samples that have all required spectra
+                continue
+            
+            layers: list[np.ndarray] = []
+            for band in band_order:
+                arr = _load_tif_as_gray(spec_map[band])
+                layers.append(arr)
+
+            cube = np.stack(layers, axis=0).astype(np.float32)
+
+            # Representative path
+            repr_path = spec_map[band_order[0]]
+
+            out[true_id] = {
+                "cube": cube,
+                "path": str(repr_path.resolve()),
+                "paths": {band: str(spec_map[band].resolve()) for band in band_order},
+            }
+                
+        return out
+
+    return loader
+
+def make_sri_lanka_npy_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
+    root = Path(root_dir)
+    
+    def loader() -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+
+        for npy_path in root.rglob("*.npy"):
+            arr = np.load(npy_path).astype(np.float32)
+            sid = npy_path.stem[:-2]
+            
+            if sid in out:
+                raise ValueError(
+                    f"Duplicate id '{sid}' from files:\n"
+                    f"  {out[sid]['path']}\n"
+                    f"  {npy_path}"
+                )
+
+            out[sid] = {
+                "cube": arr,
+                "path": str(npy_path.resolve())
+            }
+            
+        return out
+    
+    return loader
+
+def make_kazakhstan_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
+    raise NotImplementedError("Kazakhstan loader not implemented")
+
+def make_kazakhstan_npy_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
+    raise NotImplementedError("Kazakhstan npy loader not implemented")
