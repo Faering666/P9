@@ -57,7 +57,8 @@ Each loader function should:
 
 The ms_paths list structure:
 [rgb_0_band_0, rgb_0_band_1, rgb_0_band_2, rgb_0_band_3,
- rgb_1_band_0, rgb_1_band_1, rgb_1_band_2, rgb_1_band_3, ...]"""
+ rgb_1_band_0, rgb_1_band_1, rgb_1_band_2, rgb_1_band_3, ...]
+ """
 
 
 def load_sri_lanka(root_path: Path) -> tuple[list[Path], list[Path]]:
