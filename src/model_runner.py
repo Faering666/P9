@@ -133,7 +133,7 @@ class ModelRunner:
 
         # ---- Pad ----
         x_pad, pads = self._pad_to_multiple(x, multiple=self.pad_multiple, mode="reflect")
-
+        
         # ---- Forward ----
         self._log("Forward pass...")
         torch.cuda.synchronize() if self.device.type == "cuda" else None
@@ -271,6 +271,7 @@ class ModelRunner:
         for p in paths:
             try:
                 self._log(f"## Evaluating [{i+1} / {num_pics}] :: '{p}'", True)
+                # breakpoint()
                 res = self.infer_one(
                                      p,
                                      prefix="" if no_prefix else None,

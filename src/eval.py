@@ -6,7 +6,7 @@ from data_carrier import DataCarrier
 from torch.utils.data import DataLoader
 import argparse
 from pathlib import Path
-from data_carrier import load_east_kaz, load_sri_lanka_patch, load_sri_lanka_full, load_single_picture, load_weedy_rice, DataCarrier
+from data_carrier import load_east_kaz, load_sri_lanka, load_weedy_rice, DataCarrier
 import cv2
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -19,7 +19,8 @@ def run(root_dir="data/",
         single_picture="",
         amount="Full",
         model_path="model_final.pkl",
-        full_picture=False):
+        full_picture=False,
+        save_images=False):
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
     output_dir= Path(save_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -57,24 +58,16 @@ def run(root_dir="data/",
 
     if single:
         # Single picture does not care for full or patch
-        dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type, true_picture=True)
+        # dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type, true_picture=True)
+        pass
     else:
         match data_type:
             case "Sri-Lanka":
-                if full_picture:
-                    dataset = DataCarrier(root_dir, load_sri_lanka_full, true_picture=True)
-                else:
-                    dataset = DataCarrier(root_dir, load_sri_lanka_patch, true_picture=True)
+                dataset = DataCarrier(Path(root_dir), load_sri_lanka, resize=True)
             case "Kazahkstan":
-                if full_picture:
-                    dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True)
-                else:
-                    dataset = DataCarrier(root_dir, load_east_kaz, true_picture=True) # East Kazakhstan dataset does not have patches
+                dataset = DataCarrier(Path(root_dir), load_east_kaz, resize=True)
             case "Weedy-Rice":
-                if full_picture:
-                    dataset = DataCarrier(root_dir, load_weedy_rice, true_picture=True)
-                else:
-                    dataset = DataCarrier(root_dir, load_weedy_rice, true_picture=True) # Weedy Rice dataset does not have patches
+                dataset = DataCarrier(Path(root_dir), load_weedy_rice, resize=True)
             case _:
                 print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
@@ -90,8 +83,10 @@ def run(root_dir="data/",
     for sample in dataset:
         if limit is not None and index >= limit:
             break
-        rgb = sample["rgb"] 
+        rgb = sample["rgb"]
         target = sample["ms"]
+        file_path = Path(sample["path"][0])
+        print(f"Processing: {file_path}")
     
         rgb_vis = rgb.permute(0, 2, 3, 1).cpu().numpy().squeeze(0)
         target = target.squeeze(0).cpu().numpy() if target.dim() == 4 else target.cpu().numpy()
@@ -105,47 +100,53 @@ def run(root_dir="data/",
 
         pred = np.clip(pred, 0, 1)
 
-        _, axes = plt.subplots(2, 5, figsize=(14, 5))
-        axes[0, 0].imshow(rgb_vis)
-        axes[0, 0].set_title("RGB Input")
-        axes[0, 0].axis("off")
+        # Save numpy file
+        np.save(output_dir / file_path.stem, pred.astype(np.float32))
 
-        for i in range(4):
-            axes[0, i+1].imshow(target[i], cmap='gray')
-            axes[0, i+1].set_title(f"GT Band {i+1}")
-            axes[0, i+1].axis("off")
+        if save_images:
+            file_name = f"validation_result_{str(index)}.png"
+            # Save grid image
+            _, axes = plt.subplots(2, 5, figsize=(14, 5))
+            axes[0, 0].imshow(rgb_vis)
+            axes[0, 0].set_title("RGB Input")
+            axes[0, 0].axis("off")
 
-        for i in range(4):
-            axes[1, i].imshow(pred[i], cmap='gray')
-            axes[1, i].set_title(f"Pred Band {i+1}")
-            axes[1, i].axis("off")
+            for i in range(4):
+                axes[0, i+1].imshow(target[i], cmap='gray')
+                axes[0, i+1].set_title(f"GT Band {i+1}")
+                axes[0, i+1].axis("off")
 
-        axes[1, 4].axis("off")
-        plt.tight_layout()
-        file_name = f"validation_result_{str(index)}.png"
-        plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
-        plt.savefig(output_dir / file_name, dpi=150, bbox_inches="tight")
-        plt.close()
+            for i in range(4):
+                axes[1, i].imshow(pred[i], cmap='gray')
+                axes[1, i].set_title(f"Pred Band {i+1}")
+                axes[1, i].axis("off")
 
-        for i in range(4):
-            img = (pred[i] * 255).clip(0, 255).astype(np.uint8)
-            file_name = f"validation_result_{str(index)}_{i+1}_.JPG"    
-            cv2.imwrite(output_dir / file_name, img)
+            axes[1, 4].axis("off")
+            plt.tight_layout()
+            plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
+            plt.savefig(output_dir / file_name, dpi=150, bbox_inches="tight")
+            plt.close()
+            print(f"Saved visualization to {file_name}")
 
-        
-        print(f"Saved visualization to {file_name}")
+            # Save individual images
+            for i in range(4):
+                img = (pred[i] * 255).clip(0, 255).astype(np.uint8)
+                file_name = f"validation_result_{str(index)}_{i+1}_.JPG"    
+                cv2.imwrite(output_dir / file_name, img)
+
         index += 1
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Creates patches from spectral bands.")
+    parser = argparse.ArgumentParser(description="Runs inference on images.")
     parser.add_argument("--data_path", help="Path to directory with data, default=data/", default="data/")
-    parser.add_argument("--single", type=bool, help="One or many pictures, default=many", default=False)
+    parser.add_argument("--single", type=bool, help="One or many pictures, default=many", action=argparse.BooleanOptionalAction)
     parser.add_argument("--jpg", help="path to single picture", default=None)
-    parser.add_argument("--full_picture", type=bool, help="Use full pictures or patches, default=False/Patches", default=False)
+    parser.add_argument("--full_picture", type=bool, help="Use full pictures", action=argparse.BooleanOptionalAction)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
     parser.add_argument("--save_path", help="Name of save directory", default="results")
-    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazahkstan", "Weedy-Rice"], help="Which dataset default=Sri-Lanka", default="Sri-Lanka")
-    parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", default="model_final.pkl")
+    parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazakhstan", "Weedy-Rice"], help="Which dataset should be used", required=True)
+    parser.add_argument("--model", help="Which model to use, and path to the model from project dir, default=model_final.pkl", required=True)
+    parser.add_argument("--save_images", help="Save the images predicted", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     root_dir = args.data_path # Root directory of data (data/)
     try:
@@ -158,12 +159,15 @@ if __name__ == "__main__":
     amount = args.amount #If not single, gives the amount of pictures to process
     model_path = args.model #MST++ model to evaluate
     full_picture = args.full_picture #Patches or full picture
+    save_images = args.save_images
     run(
         root_dir=root_dir, 
-        data_type=data_type, 
+        data_type=data_type,
         save_dir=save_dir, 
         single=single, 
         single_picture=single_picture, 
         amount=amount, 
         model_path=model_path, 
-        full_picture=full_picture)
+        full_picture=full_picture,
+        save_images=save_images
+        )

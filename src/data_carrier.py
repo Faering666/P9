@@ -307,7 +307,7 @@ class DataCarrier(Dataset):
             Each MS image corresponds to 4 consecutive band files in ms_paths.
             For example, idx=0 uses ms_paths[0:4], idx=1 uses ms_paths[4:8], etc.
         """
-        rgb = str(self.rgb_paths[idx])
+        rgb_path = str(self.rgb_paths[idx])
 
         # Get paths for all 4 MS bands corresponding to this RGB image
         # ms_paths is structured as [rgb0_b0, rgb0_b1, rgb0_b2, rgb0_b3,
@@ -317,14 +317,14 @@ class DataCarrier(Dataset):
         # Load and optionally resize RGB image
         bands = []
         if self.resize:
-            rgb = cv2.resize(self._load_and_normalize(rgb), (256, 256), interpolation=cv2.INTER_AREA)
+            rgb = cv2.resize(self._load_and_normalize(rgb_path), (256, 256), interpolation=cv2.INTER_AREA)
             for path in ms:
                 band = cv2.resize(self._load_and_normalize(path), (256, 256), interpolation=cv2.INTER_AREA)
                 if band.ndim == 3:
                     band = band[:,:,0]
                 bands.append(band)
         else:
-            rgb = self._load_and_normalize(rgb)
+            rgb = self._load_and_normalize(rgb_path)
             for path in ms:
                 band = self._load_and_normalize(path)
                 if band.ndim == 3:
@@ -341,7 +341,7 @@ class DataCarrier(Dataset):
         rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
         target = torch.from_numpy(target).permute(2, 0, 1).float()
 
-        return {"rgb": rgb, "ms": target}
+        return {"rgb": rgb, "ms": target, "path": rgb_path}
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
