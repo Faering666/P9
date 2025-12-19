@@ -100,8 +100,8 @@ if __name__ == '__main__':
             cropped_images = crop_to_valid_overlap(images)
             # Save results
             base_name = os.path.basename(paths['green']).replace('_MS_G.TIF', '')
-            for i, band in enumerate(['rgb', 'green', 'red', 'red_edge', 'nir']):
-                out_path = os.path.join(args.output_folder, f'{base_name}_aligned_cropped_{band}.png')
+            for i, band in enumerate(['_D.JPG', '_MS_G.TIF', '_MS_R.TIF', '_MS_RE.TIF', '_MS_NIR.TIF']):
+                out_path = os.path.join(args.output_folder, f'{base_name}_aligned_cropped{band}')
                 cv2.imwrite(out_path, cropped_images[i])
             print(f'Processed {base_name}')
         except Exception as e:
