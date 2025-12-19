@@ -315,12 +315,21 @@ class DataCarrier(Dataset):
         ms = [self.ms_paths[idx*4+x] for x in range(4)]
 
         # Load and optionally resize RGB image
+        bands = []
         if self.resize:
             rgb = cv2.resize(self._load_and_normalize(rgb), (256, 256), interpolation=cv2.INTER_AREA)
-            bands = [cv2.resize(self._load_and_normalize(path), (256, 256), interpolation=cv2.INTER_AREA) for path in ms]
+            for path in ms:
+                band = cv2.resize(self._load_and_normalize(path), (256, 256), interpolation=cv2.INTER_AREA)
+                if band.ndim == 3:
+                    band = band[:,:,0]
+                bands.append(band)
         else:
             rgb = self._load_and_normalize(rgb)
-            bands = [self._load_and_normalize(path) for path in ms]
+            for path in ms:
+                band = self._load_and_normalize(path)
+                if band.ndim == 3:
+                    band = band[:,:,0]
+                bands.append(band)
 
         # Convert BGR to RGB (OpenCV loads as BGR by default)
         rgb = rgb[:,:,::-1].copy()
