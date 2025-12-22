@@ -4,12 +4,20 @@
 #!/bin/bash
 set -euo pipefail
 
+# run_eval
+#  --model       : (Required) Model path to test
+#  --pred        : (Required) The directory where the predictions are placed (the directory will automatically be created)
+#  --truth       : (Required) The root directory where the ground truth files are located (the dataset)
+#  --type        : (Required) The type of the dataset
+#  --out         : (Required) The results out dir (will automatically be created)
+#  --save-images : (Optional) Bool flag to save images
 run_eval() {
   local prediction_path=""
   local truth_path=""
   local data_type=""
   local model=""
   local result_path=""
+  local save_images=false
 
   # Parse args
   while [[ $# -gt 0 ]]; do
@@ -29,6 +37,8 @@ run_eval() {
       -o|--out)
         [[ $# -ge 2 ]] || { echo "Error: $1 requires a value" >&2; return 2; }
         result_path="$2"; shift 2 ;;
+      -s|--save-images)
+        save_images=true; shift 1;;
       *)
         echo "Unknown argument: $1" >&2
         echo "Run: run_eval --help" >&2
@@ -40,16 +50,26 @@ run_eval() {
   # Validate required args
   if [[ -z "$prediction_path" || -z "$truth_path" || -z "$data_type" || -z "$model" || -z "$result_path" ]]; then
     echo "Error: Missing required arguments." >&2
-    echo "Usage: run_eval -p <prediction_path> -t <truth_path> -d <data_type> -m <model_path> -o <result_path>" >&2
+    echo "Usage: run_eval -p <prediction_path> -t <truth_path> -d <data_type> -m <model_path> -o <result_path> [--save-images]" >&2
     return 2
   fi
 
   echo "=== Beginning predictions ==="
-  python ./src/eval.py \
-    --model "$model" \
-    --data_path "$truth_path" \
-    --data_type "$data_type" \
+  local eval_cmd=(
+    python ./src/eval.py
+    --model "$model"
+    --data_path "$truth_path"
+    --data_type "$data_type"
     --save_path "$prediction_path"
+  )
+
+  # Conditionally add flag
+  if [[ "$save_images" == true ]]; then
+    eval_cmd+=(--save_images)
+  fi
+
+  "${eval_cmd[@]}"
+
 
   echo "=== Beginning evaluation ==="
   python ./src/run_validation.py \
@@ -60,9 +80,19 @@ run_eval() {
   echo "\n\n\n\n"
 }
 
-run_eval \
+# Base model on 
+run_eval\
   --model "./checkpoints/hyggestue-19-12-2025/stage1_best_final.pth" \
-  --pred "results/" \
+  --pred "results/stage1_best_final/" \
   --truth "./data/Sri-Lanka-Aligned/" \
   --type "Sri-Lanka" \
-  --out "my_results.json"
+  --out "stage1_best.json"\
+  --save-images
+
+# run_eval
+#  --model       : (Required) Model path to test
+#  --pred        : (Required) The directory where the predictions are placed (the directory will automatically be created)
+#  --truth       : (Required) The root directory where the ground truth files are located (the dataset)
+#  --type        : (Required) The type of the dataset
+#  --out         : (Required) The results out dir (will automatically be created)
+#  --save-images : (Optional) Bool flag to save images
