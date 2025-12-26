@@ -77,7 +77,8 @@ class Evaluator:
         results: list[dict[str, Any]] = []
 
         for i, sid in enumerate(common_ids):
-            print(f"Computing metrics for '{sid}' :: {i + 1}/{len(common_ids)}")
+            if (i % (len(common_ids) / 10) == 0):
+                print(f"Computing metrics for '{sid}' :: {i + 1}/{len(common_ids)}")
             p_info = pred_map[sid]
             g_info = gt_map[sid]
 
