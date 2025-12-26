@@ -121,9 +121,19 @@ def make_mat_loader(root_dir: str, cube_key: str = "cube") -> Callable[[], dict[
 def _load_tif_as_gray(path: Path) -> np.ndarray:
     """Load a TIF file as a float32 2D array (H, W)."""
     img = Image.open(path)
-    arr = np.array(img, dtype=np.float32)
+    arr = np.array(img)  # keep original dtype (uint8/uint16)
     if arr.ndim == 3:
         arr = arr[..., 0]
+
+    orig_dtype = arr.dtype
+    arr = arr.astype(np.float32)
+
+    if orig_dtype == np.uint8:
+        arr /= 255.0
+    elif orig_dtype == np.uint16:
+        arr /= 65535.0
+    else:
+        arr = np.clip(arr, 0.0, 1.0)
 
     return arr
 
