@@ -15,6 +15,7 @@ if __name__ == "__main__":
     parser.add_argument("--nir_index", type=int, help="The index of the nir band", default=3)
     parser.add_argument("--result_path", type=str, help="Path to the output directory with filename")
     parser.add_argument("--only_compute", type=bool, help="Only compute from a precomputed result json file - use with '--result_path'.", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--print_results", type=bool, help="Print the results of an evaluation foreach of the predictions - will be 'true' when using '--only_compute'.", action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args()
 
@@ -40,8 +41,9 @@ if __name__ == "__main__":
     else:
         results = Evaluator.load_results(args.result_path)
 
-    for i, r in enumerate(results):
-        print(f"{i} -- {r['id']}")
-        
-        for name, value in r.items():
-            print(f"{name}: {value}")
+    if args.print_results or args.only_compute:
+        for i, r in enumerate(results):
+            print(f"{i} -- {r['id']}")
+            
+            for name, value in r.items():
+                print(f"{name}: {value}")
