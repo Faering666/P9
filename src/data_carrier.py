@@ -92,11 +92,12 @@ def load_sri_lanka(root_path: Path) -> tuple[list[Path], list[Path]]:
     # Sri Lanka MS bands have filenames like: <id>_MS_<band>.TIF
     # Define band naming
     band_order = ["G", "R", "RE", "NIR"]
-    ms_path_list = []
-    for path in rgb_path_list:
+    ms_path_list: list[Path] = []
+    for rgb_path in rgb_path_list:
+        rgb_str = str(rgb_path)
         for suffix in band_order:
-            path = os.path.join(str(path).replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
-            ms_path_list.append(path)
+            ms_str = rgb_str.replace("_D.JPG", f"_MS_{suffix}.TIF")
+            ms_path_list.append(Path(ms_str))
         if len(ms_path_list) % 4 != 0:
             raise ValueError(f"Number of MS bands is not divisible by 4. Failed at {path.name}")
 
