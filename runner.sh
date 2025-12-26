@@ -1,5 +1,7 @@
 #!/bin/bash
 
+git pull
+
 # ---------- 1st run ----------
 # Base run, with transferlearning on WeedyRice
 # python src/tl-pipeline.py \
