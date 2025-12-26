@@ -5,19 +5,25 @@
 set -euo pipefail
 
 # run_eval
-#  --model       : (Required) Model path to test
-#  --pred        : (Required) The directory where the predictions are placed (the directory will automatically be created)
-#  --truth       : (Required) The root directory where the ground truth files are located (the dataset)
-#  --type        : (Required) The type of the dataset
-#  --out         : (Required) The results out dir (will automatically be created)
-#  --save-images : (Optional) Bool flag to save images
+#  --model         : Model path to test
+#  --pred          : The directory where the predictions are placed (the directory will automatically be created)
+#  --truth         : The root directory where the ground truth files are located (the dataset)
+#  --type          : The type of the dataset
+#  --out           : The results out dir (will automatically be created)
+#  --print-results : Print the results of an evaluation foreach of the predictions
+#  --save-images   : Bool flag to save images
+#  --single-image  : Bool flag to run single image
+#  --jpg           : Name of the JPG file - not full path
 run_eval() {
   local prediction_path=""
   local truth_path=""
   local data_type=""
   local model=""
   local result_path=""
+  local print_results=false
   local save_images=false
+  local single_image=false
+  local jpg_image=""
 
   # Parse args
   while [[ $# -gt 0 ]]; do
@@ -37,8 +43,14 @@ run_eval() {
       -o|--out)
         [[ $# -ge 2 ]] || { echo "Error: $1 requires a value" >&2; return 2; }
         result_path="$2"; shift 2 ;;
+      --print-results)
+        print_results=true; shift 1;;
       -s|--save-images)
         save_images=true; shift 1;;
+      --single-image)
+        single_image=true; shift  1;;
+      --jpg)
+        jpg_image="$2"; shift 2;;
       *)
         echo "Unknown argument: $1" >&2
         echo "Run: run_eval --help" >&2
@@ -48,11 +60,17 @@ run_eval() {
   done
 
   # Validate required args
-  if [[ -z "$prediction_path" || -z "$truth_path" || -z "$data_type" || -z "$model" || -z "$result_path" ]]; then
+  if [[ -z "$prediction_path" || -z "$truth_path" || -z "$data_type" || -z "$model" || -z "$result_path" ]] then
     echo "Error: Missing required arguments." >&2
     echo "Usage: run_eval -p <prediction_path> -t <truth_path> -d <data_type> -m <model_path> -o <result_path> [--save-images]" >&2
     return 2
   fi
+
+  if [[ "$single_image" == true && -z "$jpg_image" ]] then
+    echo "Error: Missing JPG image name when using 'single-image' flag" >&2
+    return 2
+  fi
+
 
   echo "=== Beginning predictions ==="
   local eval_cmd=(
@@ -64,35 +82,119 @@ run_eval() {
   )
 
   # Conditionally add flag
-  if [[ "$save_images" == true ]]; then
+  if [[ "$save_images" == true ]] then
     eval_cmd+=(--save_images)
+  fi
+
+  if [[ "$single_image" == true ]] then
+    eval_cmd+=(--single)
+    eval_cmd+=(--jpg "$jpg_image")
   fi
 
   "${eval_cmd[@]}"
 
-
   echo "=== Beginning evaluation ==="
-  python ./src/run_validation.py \
-    --pred_path "$prediction_path" \
-    --truth_path "$truth_path" \
-    --type "$data_type" \
+  local vali_cmd=(
+    python ./src/run_validation.py
+    --pred_path "$prediction_path"
+    --truth_path "$truth_path"
+    --type "$data_type"
     --result_path "$result_path"
-  echo "\n\n\n\n"
+  )
+
+  if [[ "$print_results" == true ]] then
+    vali_cmd+=(--print_results)
+  fi
+
+  "${vali_cmd[@]}"
+  echo -e "\n--------------------------------------------------------------------------\n"
 }
 
-# Base model on 
-run_eval\
-  --model "./checkpoints/hyggestue-19-12-2025/stage1_best_final.pth" \
-  --pred "results/stage1_best_final/" \
-  --truth "./data/Sri-Lanka-Aligned/" \
-  --type "Sri-Lanka" \
-  --out "stage1_best.json"\
-  --save-images
+sri_path="./data/Sri-Lanka-Aligned/"
+weedy_path="./data/Weedy-Rice/"
 
-# run_eval
-#  --model       : (Required) Model path to test
-#  --pred        : (Required) The directory where the predictions are placed (the directory will automatically be created)
-#  --truth       : (Required) The root directory where the ground truth files are located (the dataset)
-#  --type        : (Required) The type of the dataset
-#  --out         : (Required) The results out dir (will automatically be created)
-#  --save-images : (Optional) Bool flag to save images
+echo "---------- 1st run ----------"
+# Base model stage 1 (trained on Kazakhstan) test on Sri Lanka
+run_eval \
+  --model "./checkpoints/basemodel-tl-Weed/stage1_best_final.pth" \
+  --pred "results/basemodel-stage1---Sri-Lanka/" \
+  --truth "$sri_path" \
+  --type "Sri-Lanka" \
+  --out "results/basemodel-stage1---Sri-Lanka/results.json"
+
+# Base model stage 1 (trained on Kazakhstan) test on Weedy Rice
+run_eval \
+  --model "./checkpoints/basemodel-tl-Weed/stage1_best_final.pth" \
+  --pred "results/basemodel-stage1---Weedy-Rice/" \
+  --truth "$weedy_path" \
+  --type "Weedy-Rice" \
+  --out "results/basemodel-stage1---Weedy-Rice/results.json"
+
+# Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
+run_eval \
+  --model "./checkpoints/basemodel-tl-Weed/stage2_best_final.pth" \
+  --pred "results/basemodel-stage2---Sri-Lanka/" \
+  --truth "$sri_path" \
+  --type "Sri-Lanka" \
+  --out "results/basemodel-stage2---Sri-Lanka/results.json"
+
+# Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
+run_eval \
+  --model "./checkpoints/basemodel-tl-Weed/stage3_best_final.pth" \
+  --pred "results/basemodel-stage3---Sri-Lanka/" \
+  --truth "$sri_path" \
+  --type "Sri-Lanka" \
+  --out "results/basemodel-stage3---Sri-Lanka/results.json"
+
+echo "---------- 2nd run ----------"
+# Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
+run_eval \
+  --model "./checkpoints/Sri-Lanka-stage3-only/stage3_best_final.pth" \
+  --pred "results/Sri-Lanka-stage3-only---Weedy-Rice/" \
+  --truth "$weedy_path" \
+  --type "Weedy-Rice" \
+  --out "results/Sri-Lanka-stage3-only---Weedy-Rice/results.json"
+
+echo "---------- 3rd run ----------"
+# Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
+run_eval \
+  --model "./checkpoints/tl-sri-lanka/stage2_best_final.pth" \
+  --pred "results/tl-sri-lanka-stage-2---Weedy-Rice/" \
+  --truth "$weedy_path" \
+  --type "Weedy-Rice" \
+  --out "results/tl-sri-lanka-stage-2---Weedy-Rice/results.json"
+
+# Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
+run_eval \
+  --model "./checkpoints/tl-sri-lanka/stage3_best_final.pth" \
+  --pred "results/tl-sri-lanka-stage-3---Weedy-Rice/" \
+  --truth "$weedy_path" \
+  --type "Weedy-Rice" \
+  --out "results/tl-sri-lanka-stage-3---Weedy-Rice/results.json"
+
+echo "---------- 4th run ----------"
+# Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
+run_eval \
+  --model "./checkpoints/weed-rice-stage3-only/stage3_best_final.pth" \
+  --pred "results/weed-rice-stage3-only---Sri-Lanka/" \
+  --truth "$sri_path" \
+  --type "Sri-Lanka" \
+  --out "results/weed-rice-stage3-only---Sri-Lanka/results.json"
+
+echo "---------- 5th run ----------"
+# Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
+run_eval \
+  --model "./checkpoints/Sri-lanka-stage2-trained-on-stage3/stage2_best_final.pth" \
+  --pred "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/" \
+  --truth "$weedy_path" \
+  --type "Weedy-Rice" \
+  --out "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/results.json"
+
+echo "---------- 6th run ----------"
+# Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
+run_eval \
+  --model "./checkpoints/Weedy-Rice-stage2-trained-on-stage3/stage2_best_final.pth" \
+  --pred "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/" \
+  --truth "$sri_path" \
+  --type "Sri-Lanka" \
+  --out "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/results.json"
