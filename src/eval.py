@@ -60,9 +60,18 @@ def run(root_dir="data/",
     
 
     if single:
+        print("Running single image")
         # Single picture does not care for full or patch
-        # dataset = DataCarrier((root_dir + single_picture), load_single_picture, data_type=data_type, true_picture=True)
-        pass
+        match data_type:
+            case "Sri-Lanka":
+                dataset = DataCarrier(Path(root_dir + single_picture), load_sri_lanka, resize=False)
+            case "Kazahkstan":
+                dataset = DataCarrier(Path(root_dir + single_picture), load_east_kaz, resize=False)
+            case "Weedy-Rice":
+                dataset = DataCarrier(Path(root_dir + single_picture), load_weedy_rice, resize=False)
+            case _:
+                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                breakpoint() #Dummefejl
     else:
         match data_type:
             case "Sri-Lanka":
@@ -83,13 +92,14 @@ def run(root_dir="data/",
     else:
         limit = int(amount)
 
-    for sample in dataset:
+    for i, sample in enumerate(dataset):
         if limit is not None and index >= limit:
             break
         rgb = sample["rgb"]
         target = sample["ms"]
         file_path = Path(sample["path"][0])
-        print(f"Processing: {file_path}")
+        if (i % (len(dataset) / 8) == 0):
+            print(f"Processing: {file_path}")
     
         rgb_vis = rgb.permute(0, 2, 3, 1).cpu().numpy().squeeze(0)
         target = target.squeeze(0).cpu().numpy() if target.dim() == 4 else target.cpu().numpy()
@@ -129,7 +139,7 @@ def run(root_dir="data/",
             plt.savefig("validation_result.png", dpi=150, bbox_inches="tight")
             plt.savefig(output_dir / file_name, dpi=150, bbox_inches="tight")
             plt.close()
-            print(f"Saved visualization to {file_name}")
+            # print(f"Saved visualization to {file_name}")
 
             # Save individual images
             for i in range(4):
