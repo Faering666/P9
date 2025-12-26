@@ -3,6 +3,7 @@
 # Copyright (c) <Yuanhao Cai>.
 # Modifications Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
 
+import numpy as np
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -57,6 +58,6 @@ class Loss_PSNR(nn.Module):
         
         mse = nn.MSELoss(reduction="none")
         err = mse(Itrue, Ifake).sum(dim=1, keepdim=True).div_(C * H * W)
-        psnr = 10.0 * torch.log10((data_range ** 2) / err)
+        psnr = 10. * torch.log((data_range ** 2) / err) / np.log(10.)
         
         return torch.mean(psnr)
