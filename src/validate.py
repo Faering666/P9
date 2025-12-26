@@ -2,8 +2,6 @@ import json
 from pathlib import Path
 from typing import Callable, Any
 
-import cv2
-import numpy as np
 from metric_calculator import MetricCalculator
 
 class Evaluator:
