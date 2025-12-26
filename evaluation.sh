@@ -120,7 +120,8 @@ run_eval \
   --pred "results/basemodel-stage1---Sri-Lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/basemodel-stage1---Sri-Lanka/results.json"
+  --out "results/basemodel-stage1---Sri-Lanka/results.json" \
+  --save-images
 
 # Base model stage 1 (trained on Kazakhstan) test on Weedy Rice
 run_eval \
@@ -128,7 +129,8 @@ run_eval \
   --pred "results/basemodel-stage1---Weedy-Rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/basemodel-stage1---Weedy-Rice/results.json"
+  --out "results/basemodel-stage1---Weedy-Rice/results.json" \
+  --save-images
 
 # Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
@@ -136,7 +138,8 @@ run_eval \
   --pred "results/basemodel-stage2---Sri-Lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/basemodel-stage2---Sri-Lanka/results.json"
+  --out "results/basemodel-stage2---Sri-Lanka/results.json" \
+  --save-images
 
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
@@ -144,7 +147,8 @@ run_eval \
   --pred "results/basemodel-stage3---Sri-Lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/basemodel-stage3---Sri-Lanka/results.json"
+  --out "results/basemodel-stage3---Sri-Lanka/results.json" \
+  --save-images
 
 echo "---------- 2nd run ----------"
 # Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
@@ -153,7 +157,8 @@ run_eval \
   --pred "results/Sri-Lanka-stage3-only---Weedy-Rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/Sri-Lanka-stage3-only---Weedy-Rice/results.json"
+  --out "results/Sri-Lanka-stage3-only---Weedy-Rice/results.json" \
+  --save-images
 
 echo "---------- 3rd run ----------"
 # Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
@@ -162,7 +167,8 @@ run_eval \
   --pred "results/tl-sri-lanka-stage-2---Weedy-Rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/tl-sri-lanka-stage-2---Weedy-Rice/results.json"
+  --out "results/tl-sri-lanka-stage-2---Weedy-Rice/results.json" \
+  --save-images
 
 # Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
 run_eval \
@@ -170,7 +176,8 @@ run_eval \
   --pred "results/tl-sri-lanka-stage-3---Weedy-Rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/tl-sri-lanka-stage-3---Weedy-Rice/results.json"
+  --out "results/tl-sri-lanka-stage-3---Weedy-Rice/results.json" \
+  --save-images
 
 echo "---------- 4th run ----------"
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
@@ -179,7 +186,8 @@ run_eval \
   --pred "results/weed-rice-stage3-only---Sri-Lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/weed-rice-stage3-only---Sri-Lanka/results.json"
+  --out "results/weed-rice-stage3-only---Sri-Lanka/results.json" \
+  --save-images
 
 echo "---------- 5th run ----------"
 # Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
@@ -188,7 +196,8 @@ run_eval \
   --pred "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/results.json"
+  --out "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/results.json" \
+  --save-images
 
 echo "---------- 6th run ----------"
 # Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
@@ -197,4 +206,5 @@ run_eval \
   --pred "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/results.json"
+  --out "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/results.json" \
+  --save-images
