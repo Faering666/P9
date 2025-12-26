@@ -12,7 +12,7 @@ from torchmetrics.functional.image import (
 
 class MetricCalculator:
     """
-    Compute metrics for a *single* prediction–ground-truth pair.
+    Compute metrics for a *single* prediction-ground-truth pair.
 
     Metrics:
       - MRAE, RMSE              on the full cube (pred vs gt)
@@ -33,7 +33,7 @@ class MetricCalculator:
         nir_index: int = 0,
         red_index: int = 1,
         rededge_index: int = 2,
-        eps: float = 1e-8,
+        eps: float = 0,
         device: str | None = None,
     ):
         if device is None:
@@ -84,8 +84,9 @@ class MetricCalculator:
         # Convert all to plain floats on CPU
         return {
             "MRAE": float(mrae_val.cpu()),
+            "MSE" : float(torch.pow(rmse_val, 2).cpu()),
             "RMSE": float(rmse_val.cpu()),
-            "PSNR": float(psnr_val.cpu()),   # still pred vs gt (this is the only standard PSNR)
+            "PSNR": float(psnr_val.cpu()),
             "SSIM": float(ssim_val.cpu()),
             "SAM": float(sam_val.cpu()),
             "NDVI_PRED": float(ndvi_pred_mean.cpu()),
@@ -106,7 +107,7 @@ class MetricCalculator:
         gt = gt.to(self.device, dtype=torch.float32)
 
         # Handle (H, W, C) -> (C, H, W)
-        if pred.ndim == 3 and pred.shape[-1] == gt.shape[-1] and pred.shape[-1] <= 64:
+        if pred.ndim == 3 and pred.shape[-1] == gt.shape[-1] and pred.shape[-1] <= 16:
             pred = pred.permute(2, 0, 1)
             gt = gt.permute(2, 0, 1)
 
