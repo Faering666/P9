@@ -110,8 +110,8 @@ run_eval() {
   echo -e "\n--------------------------------------------------------------------------\n"
 }
 
-sri_path="./data/Sri-Lanka-Aligned/"
-weedy_path="./data/Weedy-Rice/"
+sri_path="./data/sri-lanka-aligned/"
+weedy_path="./data/WeedyRice/"
 
 echo "---------- 1st run ----------"
 # Base model stage 1 (trained on Kazakhstan) test on Sri Lanka
