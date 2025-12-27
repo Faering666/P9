@@ -230,7 +230,7 @@ class TransferLearning:
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            if (batch_idx + 1) % 10 == 0:
+            if (batch_idx) % 10 == 0:
                  print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
