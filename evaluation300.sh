@@ -189,3 +189,7 @@ run_eval \
   --type "Sri-Lanka" \
   --out "results/300/Weedy-Rice-stage2-trained-on-stage3---sri-lanka/results.json" \
   --save-images
+
+git add results/300/
+git commit -m "Adding evaluations of 300 epochs"
+git push
