@@ -134,19 +134,19 @@ run_eval \
 # Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
   --model "./checkpoints/100/tl-weedy-rice/stage2_best_final.pth" \
-  --pred "results/100/stage2---sri-lanka/" \
+  --pred "results/100/tl-weedy-rice-stage2---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/100/stage2---sri-lanka/results.json" \
+  --out "results/100/tl-weedy-rice-stage2---sri-lanka/results.json" \
   --save-images
 
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
   --model "./checkpoints/100/tl-weedy-rice/stage3_best_final.pth" \
-  --pred "results/100/stage3---sri-lanka/" \
+  --pred "results/100/tl-weedy-rice-stage3---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/100/stage3---sri-lanka/results.json" \
+  --out "results/100/tl-weedy-rice-stage3---sri-lanka/results.json" \
   --save-images
 
 echo "---------- 2nd run ----------"
