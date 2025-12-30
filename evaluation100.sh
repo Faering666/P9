@@ -1,8 +1,7 @@
+#!/bin/bash
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
 
-#!/bin/bash
-set -euo pipefail
 
 # run_eval
 #  --model         : Model path to test
@@ -134,77 +133,77 @@ run_eval \
 
 # Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
-  --model "./checkpoints/basemodel-tl-Weed/stage2_best_final.pth" \
-  --pred "results/basemodel-stage2---Sri-Lanka/" \
+  --model "./checkpoints/100/tl-weedy-rice/stage2_best_final.pth" \
+  --pred "results/100/stage2---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/basemodel-stage2---Sri-Lanka/results.json" \
+  --out "results/100/stage2---sri-lanka/results.json" \
   --save-images
 
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
-  --model "./checkpoints/basemodel-tl-Weed/stage3_best_final.pth" \
-  --pred "results/basemodel-stage3---Sri-Lanka/" \
+  --model "./checkpoints/100/tl-weedy-rice/stage3_best_final.pth" \
+  --pred "results/100/stage3---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/basemodel-stage3---Sri-Lanka/results.json" \
+  --out "results/100/stage3---sri-lanka/results.json" \
   --save-images
 
 echo "---------- 2nd run ----------"
-# Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
+# Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
 run_eval \
-  --model "./checkpoints/Sri-Lanka-stage3-only/stage3_best_final.pth" \
-  --pred "results/Sri-Lanka-stage3-only---Weedy-Rice/" \
+  --model "./checkpoints/100/tl-sri-lanka/stage2_best_final.pth" \
+  --pred "results/100/tl-sri-lanka-stage-2---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/Sri-Lanka-stage3-only---Weedy-Rice/results.json" \
+  --out "results/100/tl-sri-lanka-stage-2---weedy-rice/results.json" \
+  --save-images
+
+# Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
+run_eval \
+  --model "./checkpoints/100/tl-sri-lanka/stage3_best_final.pth" \
+  --pred "results/100/tl-sri-lanka-stage-3---weedy-rice/" \
+  --truth "$weedy_path" \
+  --type "Weedy-Rice" \
+  --out "results/100/tl-sri-lanka-stage-3---weedy-rice/results.json" \
   --save-images
 
 echo "---------- 3rd run ----------"
-# Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
-run_eval \
-  --model "./checkpoints/tl-sri-lanka/stage2_best_final.pth" \
-  --pred "results/tl-sri-lanka-stage-2---Weedy-Rice/" \
-  --truth "$weedy_path" \
-  --type "Weedy-Rice" \
-  --out "results/tl-sri-lanka-stage-2---Weedy-Rice/results.json" \
-  --save-images
-
 # Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
 run_eval \
-  --model "./checkpoints/tl-sri-lanka/stage3_best_final.pth" \
-  --pred "results/tl-sri-lanka-stage-3---Weedy-Rice/" \
+  --model "./checkpoints/100/sri-lanka-stage3-only/stage3_best_final.pth" \
+  --pred "results/100/sri-lanka-stage3-only---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/tl-sri-lanka-stage-3---Weedy-Rice/results.json" \
+  --out "results/100/sri-lanka-stage3-only---weedy-rice/results.json" \
   --save-images
 
 echo "---------- 4th run ----------"
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
-  --model "./checkpoints/weed-rice-stage3-only/stage3_best_final.pth" \
-  --pred "results/weed-rice-stage3-only---Sri-Lanka/" \
+  --model "./checkpoints/100/weed-rice-stage3-only/stage3_best_final.pth" \
+  --pred "results/100/weed-rice-stage3-only---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/weed-rice-stage3-only---Sri-Lanka/results.json" \
+  --out "results/100/weed-rice-stage3-only---sri-lanka/results.json" \
   --save-images
 
 echo "---------- 5th run ----------"
 # Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
 run_eval \
-  --model "./checkpoints/Sri-lanka-stage2-trained-on-stage3/stage2_best_final.pth" \
-  --pred "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/" \
+  --model "./checkpoints/100/sri-lanka-stage2-trained-on-stage3/stage2_best_final.pth" \
+  --pred "results/100/Sri-lanka-stage2-trained-on-stage3---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/Sri-lanka-stage2-trained-on-stage3---Weedy-Rice/results.json" \
+  --out "results/100/Sri-lanka-stage2-trained-on-stage3---weedy-rice/results.json" \
   --save-images
 
 echo "---------- 6th run ----------"
 # Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
-  --model "./checkpoints/Weedy-Rice-stage2-trained-on-stage3/stage2_best_final.pth" \
-  --pred "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/" \
+  --model "./checkpoints/100/weedy-rice-stage2-trained-on-stage3/stage2_best_final.pth" \
+  --pred "results/100/Weedy-Rice-stage2-trained-on-stage3---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/Weedy-Rice-stage2-trained-on-stage3---Sri-Lanka/results.json" \
+  --out "results/100/Weedy-Rice-stage2-trained-on-stage3---sri-lanka/results.json" \
   --save-images

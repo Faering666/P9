@@ -1,8 +1,7 @@
+#!/bin/bash
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
 
-#!/bin/bash
-set -euo pipefail
 
 # run_eval
 #  --model         : Model path to test
@@ -60,13 +59,13 @@ run_eval() {
   done
 
   # Validate required args
-  if [[ -z "$prediction_path" || -z "$truth_path" || -z "$data_type" || -z "$model" || -z "$result_path" ]] then
+  if [[ -z "$prediction_path" || -z "$truth_path" || -z "$data_type" || -z "$model" || -z "$result_path" ]]; then
     echo "Error: Missing required arguments." >&2
     echo "Usage: run_eval -p <prediction_path> -t <truth_path> -d <data_type> -m <model_path> -o <result_path> [--save-images]" >&2
     return 2
   fi
 
-  if [[ "$single_image" == true && -z "$jpg_image" ]] then
+  if [[ "$single_image" == true && -z "$jpg_image" ]]; then
     echo "Error: Missing JPG image name when using 'single-image' flag" >&2
     return 2
   fi
@@ -82,11 +81,11 @@ run_eval() {
   )
 
   # Conditionally add flag
-  if [[ "$save_images" == true ]] then
+  if [[ "$save_images" == true ]]; then
     eval_cmd+=(--save_images)
   fi
 
-  if [[ "$single_image" == true ]] then
+  if [[ "$single_image" == true ]]; then
     eval_cmd+=(--single)
     eval_cmd+=(--jpg "$jpg_image")
   fi
@@ -102,7 +101,7 @@ run_eval() {
     --result_path "$result_path"
   )
 
-  if [[ "$print_results" == true ]] then
+  if [[ "$print_results" == true ]]; then
     vali_cmd+=(--print_results)
   fi
 
@@ -120,7 +119,8 @@ run_eval \
   --pred "results/300/stage2---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/300/stage2---sri-lanka/results.json"
+  --out "results/300/stage2---sri-lanka/results.json" \
+  --save-images
 
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
 run_eval \
@@ -128,7 +128,8 @@ run_eval \
   --pred "results/300/stage3---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/300/stage3---sri-lanka/results.json"
+  --out "results/300/stage3---sri-lanka/results.json" \
+  --save-images
 
 echo "---------- 2nd run ----------"
 # Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
@@ -137,7 +138,8 @@ run_eval \
   --pred "results/300/tl-sri-lanka-stage-2---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/300/tl-sri-lanka-stage-2---weedy-rice/results.json"
+  --out "results/300/tl-sri-lanka-stage-2---weedy-rice/results.json" \
+  --save-images
 
 # Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
 run_eval \
@@ -145,7 +147,8 @@ run_eval \
   --pred "results/300/tl-sri-lanka-stage-3---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/300/tl-sri-lanka-stage-3---weedy-rice/results.json"
+  --out "results/300/tl-sri-lanka-stage-3---weedy-rice/results.json" \
+  --save-images
 
 echo "---------- 3rd run ----------"
 # Base model stage 3 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
@@ -154,7 +157,8 @@ run_eval \
   --pred "results/300/sri-lanka-stage3-only---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/300/sri-lanka-stage3-only---weedy-rice/results.json"
+  --out "results/300/sri-lanka-stage3-only---weedy-rice/results.json" \
+  --save-images
 
 echo "---------- 4th run ----------"
 # Base model stage 3 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
@@ -163,7 +167,8 @@ run_eval \
   --pred "results/300/weed-rice-stage3-only---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/300/weed-rice-stage3-only---sri-lanka/results.json"
+  --out "results/300/weed-rice-stage3-only---sri-lanka/results.json" \
+  --save-images
 
 echo "---------- 5th run ----------"
 # Base model stage 2 (trained on Kazakhstan + Sri-Lanka) test on Weedy-Rice
@@ -172,7 +177,8 @@ run_eval \
   --pred "results/300/Sri-lanka-stage2-trained-on-stage3---weedy-rice/" \
   --truth "$weedy_path" \
   --type "Weedy-Rice" \
-  --out "results/300/Sri-lanka-stage2-trained-on-stage3---weedy-rice/results.json"
+  --out "results/300/Sri-lanka-stage2-trained-on-stage3---weedy-rice/results.json" \
+  --save-images
 
 echo "---------- 6th run ----------"
 # Base model stage 2 (trained on Kazakhstan + Weedy-Rice) test on Sri-Lanka
@@ -181,4 +187,5 @@ run_eval \
   --pred "results/300/Weedy-Rice-stage2-trained-on-stage3---sri-lanka/" \
   --truth "$sri_path" \
   --type "Sri-Lanka" \
-  --out "results/300/Weedy-Rice-stage2-trained-on-stage3---sri-lanka/results.json"
+  --out "results/300/Weedy-Rice-stage2-trained-on-stage3---sri-lanka/results.json" \
+  --save-images
