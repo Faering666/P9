@@ -18,7 +18,6 @@ data/*/
 **.venv**
 **venv**
 logs/
-result*/
 
 model_best.pkl
 model_final.pkl
