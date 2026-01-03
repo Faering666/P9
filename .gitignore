@@ -15,7 +15,8 @@ data/*.TIF
 data/*/
 .env
 
-results/
+results/**/data
+results/**/images
 
 **.venv**
 **venv**
