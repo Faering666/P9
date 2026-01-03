@@ -22,7 +22,6 @@ def run(root_dir="data/",
         single_picture="",
         amount="Full",
         model_path="model_final.pkl",
-        full_picture=False,
         save_images=False):
     model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(device)
     output_dir= Path(save_dir)
@@ -46,7 +45,7 @@ def run(root_dir="data/",
         key = k
         if key.startswith("module."):
             key = key[len("module."):]
-            
+
         if key in model_sd and v.size() == model_sd[key].size():
             filtered[key] = v
 
@@ -57,7 +56,7 @@ def run(root_dir="data/",
 
     model.load_state_dict(filtered, strict=False)
     model.eval()
-    
+
 
     if single:
         print("Running single image")
@@ -100,14 +99,14 @@ def run(root_dir="data/",
         file_path = Path(sample["path"][0])
         if (i % (len(dataset) / 10) == 0):
             print(f"Processing [{i+1}/{len(dataset)}]")
-    
+
         rgb_vis = rgb.permute(0, 2, 3, 1).cpu().numpy().squeeze(0)
         target = target.squeeze(0).cpu().numpy() if target.dim() == 4 else target.cpu().numpy()
-        rgb = rgb.to(device)             
+        rgb = rgb.to(device)
 
         with torch.no_grad():
             output = model(rgb)
-            if isinstance(output, list): 
+            if isinstance(output, list):
                 output = output[-1]
             pred = output.squeeze(0).cpu().numpy()
 
@@ -144,7 +143,7 @@ def run(root_dir="data/",
             # Save individual images
             for i in range(4):
                 img = (pred[i] * 255).clip(0, 255).astype(np.uint8)
-                file_name = f"validation_result_{str(index)}_{i+1}_.JPG"    
+                file_name = f"validation_result_{str(index)}_{i+1}_.JPG"
                 cv2.imwrite(output_dir / file_name, img)
 
         index += 1
@@ -154,7 +153,6 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", help="Path to directory with data, default=data/", default="data/")
     parser.add_argument("--single", type=bool, help="One or many pictures, default=many", action=argparse.BooleanOptionalAction)
     parser.add_argument("--jpg", help="path to single picture", default=None)
-    parser.add_argument("--full_picture", type=bool, help="Use full pictures", action=argparse.BooleanOptionalAction)
     parser.add_argument("--amount", help="Amount of pictures the eval should run through, only applies if single=False, default=Full/entire dataset", default="Full")
     parser.add_argument("--save_path", help="Name of save directory", default="results")
     parser.add_argument("--data_type", type=str, choices=["Sri-Lanka", "Kazakhstan", "Weedy-Rice"], help="Which dataset should be used", required=True)
@@ -171,16 +169,14 @@ if __name__ == "__main__":
     single_picture = args.jpg #Only one picture
     amount = args.amount #If not single, gives the amount of pictures to process
     model_path = args.model #MST++ model to evaluate
-    full_picture = args.full_picture #Patches or full picture
     save_images = args.save_images
     run(
-        root_dir=root_dir, 
+        root_dir=root_dir,
         data_type=data_type,
-        save_dir=save_dir, 
-        single=single, 
-        single_picture=single_picture, 
-        amount=amount, 
-        model_path=model_path, 
-        full_picture=full_picture,
+        save_dir=save_dir,
+        single=single,
+        single_picture=single_picture,
+        amount=amount,
+        model_path=model_path,
         save_images=save_images
         )
