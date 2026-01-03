@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 
+
+
 import os
 import sys
 
@@ -45,6 +47,35 @@ def save_array_as_pink_colormap(array, path):
     img = Image.fromarray(arr_rgb)
     img.save(path)
 
+
+def sam_error_map(pred_files, gt_files):
+    # Load all bands as arrays and stack into (H, W, bands)
+    bands = ["r", "g", "re", "nir"]
+    pred_stack = []
+    gt_stack = []
+    for b in bands:
+        pred_stack.append(load_image_as_array(pred_files[b]))
+        gt_stack.append(load_image_as_array(gt_files[b]))
+    pred = np.stack(pred_stack, axis=-1)
+    gt = np.stack(gt_stack, axis=-1)
+    # Ensure shapes match
+    if pred.shape != gt.shape:
+        min_shape = tuple(map(min, pred.shape, gt.shape))
+        pred = pred[:min_shape[0], :min_shape[1], :]
+        gt = gt[:min_shape[0], :min_shape[1], :]
+    # Flatten to (H*W, bands)
+    pred_flat = pred.reshape(-1, pred.shape[-1])
+    gt_flat = gt.reshape(-1, gt.shape[-1])
+    # Compute SAM for each pixel
+    dot_product = np.sum(pred_flat * gt_flat, axis=1)
+    norm_pred = np.linalg.norm(pred_flat, axis=1)
+    norm_gt = np.linalg.norm(gt_flat, axis=1)
+    cos_theta = dot_product / (norm_pred * norm_gt + 1e-8)
+    cos_theta = np.clip(cos_theta, -1, 1)
+    sam = np.arccos(cos_theta)
+    sam_map = sam.reshape(pred.shape[0], pred.shape[1])
+    return sam_map
+
 def ndvi_error_map(pred, gt):
     pred_nir = load_image_as_array(pred_files["nir"])
     pred_r = load_image_as_array(pred_files["r"])
@@ -67,13 +98,14 @@ def ndre_error_map(pred, gt):
     error_map = np.abs(pred - gt)
     return error_map
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate error maps for given prediction and ground truth.")
 
     # These are the path to the predicted and ground truth of the rgb images.
     # Expects _re, _g, _r, _nir suffix
-    parser.add_argument("--pred_path", default="data/error_maps/pred.JPG")
-    parser.add_argument("--gt_path", default="data/error_maps/gt.TIF")
+    parser.add_argument("--pred_path", default="error_maps/pred.JPG")
+    parser.add_argument("--gt_path", default="error_maps/gt.TIF")
     args = parser.parse_args()
 
     pred_files = find_image_files(args.pred_path)
@@ -84,3 +116,13 @@ if __name__ == "__main__":
 
     ndre_error = ndre_error_map(pred_files, gt_files)
     save_array_as_pink_colormap(ndre_error, "ndre_error_map_pink.png")
+
+    # SAM error map (using R, G, RE, NIR bands)
+    sam_error = sam_error_map(pred_files, gt_files)
+    # Save with a perceptually uniform colormap (e.g., 'viridis')
+    arr_norm = (sam_error - np.min(sam_error)) / (np.max(sam_error) - np.min(sam_error) + 1e-8)
+    cmap = plt.get_cmap('viridis')
+    arr_colored = cmap(arr_norm)
+    arr_rgb = (arr_colored[:, :, :3] * 255).astype(np.uint8)
+    img = Image.fromarray(arr_rgb)
+    img.save("sam_error_map_viridis.png")
