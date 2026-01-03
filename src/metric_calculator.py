@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
 
+import math
+import numpy as np
 import torch
 from torchmetrics.functional.regression import mean_squared_error
 from torchmetrics.functional.image import (
@@ -33,7 +35,7 @@ class MetricCalculator:
         nir_index: int = 0,
         red_index: int = 1,
         rededge_index: int = 2,
-        eps: float = 0,
+        eps: float = 1e-8,
         device: str | None = None,
     ):
         if device is None:
@@ -80,19 +82,30 @@ class MetricCalculator:
 
         ndre_pred_mean = ndre_pred_map.mean()
         ndre_gt_mean   = ndre_gt_map.mean()
-
+        
         # Convert all to plain floats on CPU
+        mrae = float(mrae_val.cpu())
+        mse  = float(torch.pow(rmse_val, 2).cpu())
+        rmse = float(rmse_val.cpu())
+        psnr = float(psnr_val.cpu())
+        ssim = float(ssim_val.cpu())
+        sam = float(sam_val.cpu())
+        ndvi_pred = float(ndvi_pred_mean.cpu())
+        ndvi_gt = float(ndvi_gt_mean.cpu())
+        ndre_pred = float(ndre_pred_mean.cpu())
+        ndre_gt = float(ndre_gt_mean.cpu())
+        
         return {
-            "MRAE": float(mrae_val.cpu()),
-            "MSE" : float(torch.pow(rmse_val, 2).cpu()),
-            "RMSE": float(rmse_val.cpu()),
-            "PSNR": float(psnr_val.cpu()),
-            "SSIM": float(ssim_val.cpu()),
-            "SAM": float(sam_val.cpu()),
-            "NDVI_PRED": float(ndvi_pred_mean.cpu()),
-            "NDVI_GT": float(ndvi_gt_mean.cpu()),
-            "NDRE_PRED": float(ndre_pred_mean.cpu()),
-            "NDRE_GT": float(ndre_gt_mean.cpu()),
+            "MRAE": mrae,
+            "MSE" : mse,
+            "RMSE": rmse,
+            "PSNR": psnr,
+            "SSIM": ssim,
+            "SAM": sam,
+            "NDVI_PRED": ndvi_pred,
+            "NDVI_GT": ndvi_gt,
+            "NDRE_PRED": ndre_pred,
+            "NDRE_GT": ndre_gt,
         }
 
     # ---------- internal helpers ---------- #
@@ -140,11 +153,11 @@ class MetricCalculator:
 
     def _mrae(self, pred: torch.Tensor, gt: torch.Tensor) -> torch.Tensor:
         """Mean Relative Absolute Error = mean(|pred - gt| / (|gt| + eps))."""
-        pred = pred.float()
-        gt = gt.float()
-        rel_err = (pred - gt).abs() / (gt.abs() + self.eps)
-        return rel_err.mean()
-
+        assert pred.shape == gt.shape
+        error = torch.abs(pred - gt) / torch.abs(gt + self.eps)
+        error = error.clamp(0., 1.)
+        return torch.mean(error.reshape(-1))
+        
     def _compute_ndvi(self, pred: torch.Tensor, gt: torch.Tensor):
         """
         pred, gt: (B, C, H, W)
@@ -167,6 +180,7 @@ class MetricCalculator:
         Returns:
           ndre_pred, ndre_gt: (B, H, W) each
         """
+        
         nir_p = pred[:, self.nir_index, :, :]
         re_p  = pred[:, self.rededge_index, :, :]
         nir_g = gt[:, self.nir_index, :, :]
