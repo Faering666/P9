@@ -26,7 +26,7 @@ def get_loader(data_type: str, pred_path: str, truth_path: str):
         case "Kazakhstan":
             return make_kazakhstan_npy_loader(pred_path), make_kazakhstan_loader(truth_path)
         case "Weedy-Rice":
-            return make_weedy_rice_npy_tif_loader(pred_path), make_weedy_rice_tif_loader(truth_path)
+            return make_weedy_rice_npy_loader(pred_path), make_weedy_rice_tif_loader(truth_path)
         case _: # default sri-lanka
             return make_sri_lanka_npy_loader(pred_path), make_sri_lanka_loader(truth_path)
 
@@ -166,69 +166,60 @@ def make_weedy_rice_tif_loader(root_dir: str) -> Callable[[], dict[str, dict[str
     where <true_id> is the numeric ID as a string without leading zeros
     (e.g. "4" for "004m_R").
     """
-    
-    root = Path(root_dir)
-    band_order = ["G", "R", "RE", "NIR"]
 
-    id_pattern = re.compile(r"^(\d+)m_([A-Za-z0-9]+)$")
-    
     def loader() -> dict[str, dict[str, str]]:
-        grouped: dict[str, dict[str, Path]] = {}
-
-        for tif_path in root.rglob("*"):
-            if not tif_path.is_file():
-                continue
-            if tif_path.suffix != ".TIF":
-                continue
-            
-            stem = tif_path.stem
-            
-            parts = stem.split(".")
-            id_part = parts[-1]
-
-            m = id_pattern.match(id_part)
-            if m is None:
-                # Not matching the format
-                continue
-            
-            num_str, spectrum = m.groups()
-            spectrum = spectrum.upper()
-            
-            if spectrum not in band_order:
-                # Unknown spectrum
-                continue
-            
-            grouped.setdefault(num_str, {})[spectrum] = tif_path
-                
+        root = Path(root_dir)
         out: dict[str, dict[str, Any]] = {}
 
-        for true_id, spec_map in grouped.items():
-            if not all(b in spec_map for b in band_order):
-                # Only keep samples that have all required spectra
-                continue
-            
+        rgb_path_list = sorted([f for f in root.rglob("*.JPG") if f.is_file()])
+        band_order = ["G", "R", "RE", "NIR"]
+
+        for path in rgb_path_list:
+            ms_paths: list[Path] = []
             layers: list[np.ndarray] = []
-            for band in band_order:
-                arr = _load_tif_as_gray(spec_map[band])
+            for suffix in band_order:
+                ms_path = str(path).replace(".JPG", f"_{suffix}.TIF")
+                ms_paths.append(Path(ms_path))
+                arr = _load_tif_as_gray(ms_path)
                 layers.append(arr)
 
             cube = np.stack(layers, axis=0).astype(np.float32)
 
-            # Representative path
-            repr_path = spec_map[band_order[0]]
-
-            out[true_id] = {
+            out[path.stem] = {
                 "cube": cube,
-                "path": str(repr_path.resolve()),
-                "paths": {band: str(spec_map[band].resolve()) for band in band_order},
+                "path": str(path.resolve()),
+                "paths": {band: str(ms_paths[i].resolve()) for i, band in enumerate(band_order)},
             }
                 
         return out
 
     return loader
 
-def make_weedy_rice_npy_tif_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
-    pass
+def make_weedy_rice_npy_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
+    root = Path(root_dir)
+
+    def loader() -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+
+        for npy_path in root.rglob("*.npy"):
+            arr = np.load(npy_path).astype(np.float32)
+            sid = npy_path.stem
+
+            if sid in out:
+                raise ValueError(
+                    f"Duplicate id '{sid}' from files:\n"
+                    f"  {out[sid]['path']}\n"
+                    f"  {npy_path}"
+                )
+
+            out[sid] = {
+                "cube": arr,
+                "path": str(npy_path.resolve())
+            }
+            
+        return out
+    
+    return loader
 
 def make_sri_lanka_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
     root = Path(root_dir)
