@@ -122,60 +122,78 @@ kz_path="./data/East-Kaza/"
 
 echo "---------- 1st run ----------"
 # Base model stage 1 (trained on Sri Lanka) test on Weedy Rice
+# run_eval \
+#   --model "./checkpoints/basemodel-sri-lanka/stage1_best_final.pth" \
+#   --pred "results/basemodel-sri-lanka-stage1---weedy-rice/data/" \
+#   --truth "$weedy_path" \
+#   --type "Weedy-Rice" \
+#   --out "results/basemodel-sri-lanka-stage1---weedy-rice/results.json" \
+#   --save-images
+
+# Base model stage 1 (trained on Sri Lanka) test on Weedy Rice
 run_eval \
   --model "./checkpoints/basemodel-sri-lanka/stage1_best_final.pth" \
-  --pred "results/basemodel-sri-lanka-stage1---weedy-rice/data/" \
-  --truth "$weedy_path" \
-  --type "Weedy-Rice" \
-  --out "results/basemodel-sri-lanka-stage1---weedy-rice/results.json" \
-  --save-images
+  --pred "results/basemodel-sri-lanka-stage1---kazakhstan/data/" \
+  --truth "$kz_path" \
+  --type "Kazakhstan" \
+  --out "results/basemodel-sri-lanka-stage1---kazakhstan/results.json" \
+  --save-images \
+  --limit
 
 # Base model stage 1 (trained on Weedy Rice) test on Sri Lanka
+# run_eval \
+#   --model "./checkpoints/basemodel-weedy-rice/stage1_best_final.pth" \
+#   --pred "results/basemodel-weedy-rice-stage1---sri-lanka/data/" \
+#   --truth "$sri_path" \
+#   --type "Sri-Lanka" \
+#   --out "results/basemodel-weedy-rice-stage1---sri-lanka/results.json" \
+#   --save-images
+
 run_eval \
   --model "./checkpoints/basemodel-weedy-rice/stage1_best_final.pth" \
-  --pred "results/basemodel-weedy-rice-stage1---sri-lanka/data/" \
-  --truth "$sri_path" \
-  --type "Sri-Lanka" \
-  --out "results/basemodel-weedy-rice-stage1---sri-lanka/results.json" \
-  --save-images
-
+  --pred "results/basemodel-weedy-rice-stage1---kazakhstan/data/" \
+  --truth "$kz_path" \
+  --type "Kazakhstan" \
+  --out "results/basemodel-weedy-rice-stage1---kazakhstan/results.json" \
+  --save-images \
+  --limit
 
 # Base model stage 2 (trained on Sri Lanka + Weedy-Rice) test on Kazakhstan
-run_eval \
-  --model "./checkpoints/basemodel-sri-lanka/stage2_best_final.pth" \
-  --pred "results/basemodel-sri-lanka-stage2---kazakhstan/data/" \
-  --truth "$kz_path" \
-  --type "Kazakhstan" \
-  --out "results/basemodel-sri-lanka-stage2---kazakhstan/results.json" \
-  --save-images \
-  --limit
+# run_eval \
+#   --model "./checkpoints/basemodel-sri-lanka/stage2_best_final.pth" \
+#   --pred "results/basemodel-sri-lanka-stage2---kazakhstan/data/" \
+#   --truth "$kz_path" \
+#   --type "Kazakhstan" \
+#   --out "results/basemodel-sri-lanka-stage2---kazakhstan/results.json" \
+#   --save-images \
+  # --limit
 
 # Base model stage 2 (trained on Weedy-Rice + Sri Lanka) test on Kazakhstan
-run_eval \
-  --model "./checkpoints/basemodel-weedy-rice/stage2_best_final.pth" \
-  --pred "results/basemodel-weedy-rice-stage2---kazakhstan/data/" \
-  --truth "$kz_path" \
-  --type "Kazakhstan" \
-  --out "results/basemodel-weedy-rice-stage2---kazakhstan/results.json" \
-  --save-images \
-  --limit
+# run_eval \
+#   --model "./checkpoints/basemodel-weedy-rice/stage2_best_final.pth" \
+#   --pred "results/basemodel-weedy-rice-stage2---kazakhstan/data/" \
+#   --truth "$kz_path" \
+#   --type "Kazakhstan" \
+#   --out "results/basemodel-weedy-rice-stage2---kazakhstan/results.json" \
+#   --save-images \
+#   --limit
 
 # Base model stage 3 (trained on Sri Lanka + Weedy-Rice) test on Kazakhstan
-run_eval \
-  --model "./checkpoints/basemodel-sri-lanka/stage3_best_final.pth" \
-  --pred "results/basemodel-sri-lanka-stage3---kazakhstan/data/" \
-  --truth "$kz_path" \
-  --type "Kazakhstan" \
-  --out "results/basemodel-sri-lanka-stage3---kazakhstan/results.json" \
-  --save-images \
-  --limit
+# run_eval \
+#   --model "./checkpoints/basemodel-sri-lanka/stage3_best_final.pth" \
+#   --pred "results/basemodel-sri-lanka-stage3---kazakhstan/data/" \
+#   --truth "$kz_path" \
+#   --type "Kazakhstan" \
+#   --out "results/basemodel-sri-lanka-stage3---kazakhstan/results.json" \
+#   --save-images \
+#   --limit
 
 # Base model stage 3 (trained on Weedy-Rice + Sri Lanka) test on Kazakhstan
-run_eval \
-  --model "./checkpoints/basemodel-weedy-rice/stage3_best_final.pth" \
-  --pred "results/basemodel-weedy-rice-stage3---kazakhstan/data/" \
-  --truth "$kz_path" \
-  --type "Kazakhstan" \
-  --out "results/basemodel-weedy-rice-stage3---kazakhstan/results.json" \
-  --save-images \
-  --limit
+# run_eval \
+#   --model "./checkpoints/basemodel-weedy-rice/stage3_best_final.pth" \
+#   --pred "results/basemodel-weedy-rice-stage3---kazakhstan/data/" \
+#   --truth "$kz_path" \
+#   --type "Kazakhstan" \
+#   --out "results/basemodel-weedy-rice-stage3---kazakhstan/results.json" \
+#   --save-images \
+#   --limit

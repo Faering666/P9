@@ -98,7 +98,11 @@ def run(root_dir="data/",
         target = sample["ms"]
         file_path = Path(sample["path"][0])
         if (i % (len(dataset) / 10) == 0):
-            print(f"Processing [{i+1}/{len(dataset)}]")
+            if limit is None:
+                print(f"Processing [{i+1}/{len(dataset)}]")
+            else: 
+                print(f"Processing [{i+1}/{limit}]")
+
 
         rgb_vis = rgb.permute(0, 2, 3, 1).cpu().numpy().squeeze(0)
         target = target.squeeze(0).cpu().numpy() if target.dim() == 4 else target.cpu().numpy()
