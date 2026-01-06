@@ -64,7 +64,7 @@ def run(root_dir="data/",
         match data_type:
             case "Sri-Lanka":
                 dataset = DataCarrier(Path(root_dir + single_picture), load_sri_lanka, resize=False)
-            case "Kazahkstan":
+            case "Kazakhstan":
                 dataset = DataCarrier(Path(root_dir + single_picture), load_east_kaz, resize=False)
             case "Weedy-Rice":
                 dataset = DataCarrier(Path(root_dir + single_picture), load_weedy_rice, resize=False)
@@ -75,7 +75,7 @@ def run(root_dir="data/",
         match data_type:
             case "Sri-Lanka":
                 dataset = DataCarrier(Path(root_dir), load_sri_lanka, resize=False)
-            case "Kazahkstan":
+            case "Kazakhstan":
                 dataset = DataCarrier(Path(root_dir), load_east_kaz, resize=False)
             case "Weedy-Rice":
                 dataset = DataCarrier(Path(root_dir), load_weedy_rice, resize=False)
