@@ -15,10 +15,12 @@ data/*.TIF
 data/*/
 .env
 
+results/**/data
+results/**/images
+
 **.venv**
 **venv**
 logs/
-results/
 
 model_best.pkl
 model_final.pkl

@@ -1,4 +1,6 @@
-from torch import device
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
+
 import torch
 from torch.utils.data import DataLoader
 

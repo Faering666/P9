@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
+
 """
 DataCarrier: PyTorch Dataset for Paired RGB and Multispectral Images
 
@@ -89,11 +92,12 @@ def load_sri_lanka(root_path: Path) -> tuple[list[Path], list[Path]]:
     # Sri Lanka MS bands have filenames like: <id>_MS_<band>.TIF
     # Define band naming
     band_order = ["G", "R", "RE", "NIR"]
-    ms_path_list = []
-    for path in rgb_path_list:
+    ms_path_list: list[Path] = []
+    for rgb_path in rgb_path_list:
+        rgb_str = str(rgb_path)
         for suffix in band_order:
-            path = os.path.join(str(path).replace("_D", f"_MS_{suffix}").replace(".JPG", ".TIF"))
-            ms_path_list.append(path)
+            ms_str = rgb_str.replace("_D.JPG", f"_MS_{suffix}.TIF")
+            ms_path_list.append(Path(ms_str))
         if len(ms_path_list) % 4 != 0:
             raise ValueError(f"Number of MS bands is not divisible by 4. Failed at {path.name}")
 
@@ -307,7 +311,7 @@ class DataCarrier(Dataset):
             Each MS image corresponds to 4 consecutive band files in ms_paths.
             For example, idx=0 uses ms_paths[0:4], idx=1 uses ms_paths[4:8], etc.
         """
-        rgb = str(self.rgb_paths[idx])
+        rgb_path = str(self.rgb_paths[idx])
 
         # Get paths for all 4 MS bands corresponding to this RGB image
         # ms_paths is structured as [rgb0_b0, rgb0_b1, rgb0_b2, rgb0_b3,
@@ -315,12 +319,21 @@ class DataCarrier(Dataset):
         ms = [self.ms_paths[idx*4+x] for x in range(4)]
 
         # Load and optionally resize RGB image
+        bands = []
         if self.resize:
-            rgb = cv2.resize(self._load_and_normalize(rgb), (256, 256), interpolation=cv2.INTER_AREA)
-            bands = [cv2.resize(self._load_and_normalize(path), (256, 256), interpolation=cv2.INTER_AREA) for path in ms]
+            rgb = cv2.resize(self._load_and_normalize(rgb_path), (256, 256), interpolation=cv2.INTER_AREA)
+            for path in ms:
+                band = cv2.resize(self._load_and_normalize(path), (256, 256), interpolation=cv2.INTER_AREA)
+                if band.ndim == 3:
+                    band = band[:,:,0]
+                bands.append(band)
         else:
-            rgb = self._load_and_normalize(rgb)
-            bands = [self._load_and_normalize(path) for path in ms]
+            rgb = self._load_and_normalize(rgb_path)
+            for path in ms:
+                band = self._load_and_normalize(path)
+                if band.ndim == 3:
+                    band = band[:,:,0]
+                bands.append(band)
 
         # Convert BGR to RGB (OpenCV loads as BGR by default)
         rgb = rgb[:,:,::-1].copy()
@@ -332,7 +345,7 @@ class DataCarrier(Dataset):
         rgb = torch.from_numpy(rgb).permute(2, 0, 1).float()
         target = torch.from_numpy(target).permute(2, 0, 1).float()
 
-        return {"rgb": rgb, "ms": target}
+        return {"rgb": rgb, "ms": target, "path": rgb_path}
 
 if __name__ == "__main__":
     print("Testing DataCarrier...")
