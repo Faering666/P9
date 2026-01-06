@@ -37,44 +37,22 @@ def save_array_as_image(array, path):
     img.save(path)
 
 def save_array_as_pink_colormap(array, path):
+    # Ensure input is 2D
+    if array.ndim != 2:
+        raise ValueError(f"Input array must be 2D (grayscale), got shape: {array.shape}")
     # Normalize array to 0-1
-    arr_norm = np.clip(array, 0, 1)
+    arr_norm = (array - np.min(array)) / (np.max(array) - np.min(array) + 1e-8)
     # Use matplotlib's 'pink' colormap
     cmap = plt.get_cmap('pink')
     arr_colored = cmap(arr_norm)
+    # Remove alpha channel if present
+    if arr_colored.shape[-1] == 4:
+        arr_colored = arr_colored[:, :, :3]
     # Convert to 8-bit RGB
-    arr_rgb = (arr_colored[:, :, :3] * 255).astype(np.uint8)
+    arr_rgb = (arr_colored * 255).astype(np.uint8)
     img = Image.fromarray(arr_rgb)
     img.save(path)
 
-
-def sam_error_map(pred_files, gt_files):
-    # Load all bands as arrays and stack into (H, W, bands)
-    bands = ["r", "g", "re", "nir"]
-    pred_stack = []
-    gt_stack = []
-    for b in bands:
-        pred_stack.append(load_image_as_array(pred_files[b]))
-        gt_stack.append(load_image_as_array(gt_files[b]))
-    pred = np.stack(pred_stack, axis=-1)
-    gt = np.stack(gt_stack, axis=-1)
-    # Ensure shapes match
-    if pred.shape != gt.shape:
-        min_shape = tuple(map(min, pred.shape, gt.shape))
-        pred = pred[:min_shape[0], :min_shape[1], :]
-        gt = gt[:min_shape[0], :min_shape[1], :]
-    # Flatten to (H*W, bands)
-    pred_flat = pred.reshape(-1, pred.shape[-1])
-    gt_flat = gt.reshape(-1, gt.shape[-1])
-    # Compute SAM for each pixel
-    dot_product = np.sum(pred_flat * gt_flat, axis=1)
-    norm_pred = np.linalg.norm(pred_flat, axis=1)
-    norm_gt = np.linalg.norm(gt_flat, axis=1)
-    cos_theta = dot_product / (norm_pred * norm_gt + 1e-8)
-    cos_theta = np.clip(cos_theta, -1, 1)
-    sam = np.arccos(cos_theta)
-    sam_map = sam.reshape(pred.shape[0], pred.shape[1])
-    return sam_map
 
 def ndvi_error_map(pred, gt):
     pred_nir = load_image_as_array(pred_files["nir"])
@@ -84,8 +62,7 @@ def ndvi_error_map(pred, gt):
     
     pred = (pred_nir - pred_r) / (pred_nir + pred_r + 1e-6)
     gt = (gt_nir - gt_r) / (gt_nir + gt_r + 1e-6)            
-    error_map = np.abs(pred - gt)
-    return error_map
+    return gt
 
 def ndre_error_map(pred, gt):
     pred_nir = load_image_as_array(pred_files["nir"])
@@ -95,8 +72,7 @@ def ndre_error_map(pred, gt):
     
     pred = (pred_nir - pred_re) / (pred_nir + pred_re + 1e-6)
     gt = (gt_nir - gt_re) / (gt_nir + gt_re + 1e-6)            
-    error_map = np.abs(pred - gt)
-    return error_map
+    return gt
 
 
 if __name__ == "__main__":
@@ -104,25 +80,34 @@ if __name__ == "__main__":
 
     # These are the path to the predicted and ground truth of the rgb images.
     # Expects _re, _g, _r, _nir suffix
-    parser.add_argument("--pred_path", default="error_maps/pred.JPG")
-    parser.add_argument("--gt_path", default="error_maps/gt.TIF")
+    parser.add_argument("--pred_path", default="error_maps/vietnam/pred.jpg")
+    parser.add_argument("--gt_path", default="error_maps/vietnam/gt.TIF")
     args = parser.parse_args()
 
     pred_files = find_image_files(args.pred_path)
     gt_files = find_image_files(args.gt_path)
 
     ndvi_error = ndvi_error_map(pred_files, gt_files)
-    save_array_as_pink_colormap(ndvi_error, "ndvi_error_map_pink.png")
+    # If output is 3D, convert to 2D by averaging across channels
+    if ndvi_error.ndim == 3:
+        ndvi_error_2d = np.mean(ndvi_error, axis=-1)
+    else:
+        ndvi_error_2d = ndvi_error
+    save_array_as_pink_colormap(ndvi_error_2d, "ndvi_error_map_pink.png")
 
     ndre_error = ndre_error_map(pred_files, gt_files)
-    save_array_as_pink_colormap(ndre_error, "ndre_error_map_pink.png")
+    if ndre_error.ndim == 3:
+        ndre_error_2d = np.mean(ndre_error, axis=-1)
+    else:
+        ndre_error_2d = ndre_error
+    save_array_as_pink_colormap(ndre_error_2d, "ndre_error_map_pink.png")
 
-    # SAM error map (using R, G, RE, NIR bands)
-    sam_error = sam_error_map(pred_files, gt_files)
-    # Save with a perceptually uniform colormap (e.g., 'viridis')
-    arr_norm = (sam_error - np.min(sam_error)) / (np.max(sam_error) - np.min(sam_error) + 1e-8)
-    cmap = plt.get_cmap('viridis')
-    arr_colored = cmap(arr_norm)
-    arr_rgb = (arr_colored[:, :, :3] * 255).astype(np.uint8)
-    img = Image.fromarray(arr_rgb)
-    img.save("sam_error_map_viridis.png")
+    # # SAM error map (using R, G, RE, NIR bands)
+    # sam_error = sam_error_map(pred_files, gt_files)
+    # # Save with a perceptually uniform colormap (e.g., 'viridis')
+    # arr_norm = (sam_error - np.min(sam_error)) / (np.max(sam_error) - np.min(sam_error) + 1e-8)
+    # cmap = plt.get_cmap('viridis')
+    # arr_colored = cmap(arr_norm)
+    # arr_rgb = (arr_colored[:, :, :3] * 255).astype(np.uint8)
+    # img = Image.fromarray(arr_rgb)
+    # img.save("sam_error_map_viridis.png")
