@@ -175,6 +175,7 @@ def make_weedy_rice_tif_loader(root_dir: str) -> Callable[[], dict[str, dict[str
         band_order = ["G", "R", "RE", "NIR"]
 
         for path in rgb_path_list:
+            sid = path.stem
             ms_paths: list[Path] = []
             layers: list[np.ndarray] = []
             for suffix in band_order:
@@ -185,7 +186,7 @@ def make_weedy_rice_tif_loader(root_dir: str) -> Callable[[], dict[str, dict[str
 
             cube = np.stack(layers, axis=0).astype(np.float32)
 
-            out[path.stem] = {
+            out[sid] = {
                 "cube": cube,
                 "path": str(path.resolve()),
                 "paths": {band: str(ms_paths[i].resolve()) for i, band in enumerate(band_order)},
@@ -254,7 +255,7 @@ def make_sri_lanka_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str
                 
         out: dict[str, dict[str, Any]] = {}
 
-        for true_id, spec_map in grouped.items():
+        for sid, spec_map in grouped.items():
             if not all(b in spec_map for b in band_order):
                 # Only keep samples that have all required spectra
                 continue
@@ -269,7 +270,7 @@ def make_sri_lanka_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str
             # Representative path
             repr_path = spec_map[band_order[0]]
 
-            out[true_id] = {
+            out[sid] = {
                 "cube": cube,
                 "path": str(repr_path.resolve()),
                 "paths": {band: str(spec_map[band].resolve()) for band in band_order},
@@ -306,7 +307,57 @@ def make_sri_lanka_npy_loader(root_dir: str) -> Callable[[], dict[str, dict[str,
     return loader
 
 def make_kazakhstan_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
-    raise NotImplementedError("Kazakhstan loader not implemented")
+    def loader() -> dict[str, dict[str, Any]]:
+        root = Path(root_dir)
+        out: dict[str, dict[str, Any]] = {}
+        band_order = ["G", "R", "RE", "NIR"]
+
+        rgb_paths = [Path(f) for f in root.rglob("*.JPG") if f.is_file()]
+        for path in rgb_paths:
+            sid = path.stem[:-1]
+            ms_paths: list[Path] = []
+            layers: list[np.ndarray] = []
+            for x in range(2, 6):
+                ms_path = str(path).replace("0.JPG", f"{x}.TIF")
+                ms_paths.append(Path(ms_path))
+                arr = _load_tif_as_gray(ms_path)
+                layers.append(arr)
+            
+            cube = np.stack(layers, axis=0).astype(np.float32)
+
+            out[sid] = {
+                "cube": cube,
+                "path": str(path.resolve()),
+                "paths": {band: str(ms_paths[i].resolve()) for i, band in enumerate(band_order)},
+            }
+            
+        return out
+
+    return loader
 
 def make_kazakhstan_npy_loader(root_dir: str) -> Callable[[], dict[str, dict[str, str]]]:
-    raise NotImplementedError("Kazakhstan npy loader not implemented")
+    root = Path(root_dir)
+
+    def loader() -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+
+        for npy_path in root.rglob("*.npy"):
+            arr = np.load(npy_path).astype(np.float32)
+            sid = npy_path.stem[:-1]
+
+            if sid in out:
+                raise ValueError(
+                    f"Duplicate id '{sid}' from files:\n"
+                    f"  {out[sid]['path']}\n"
+                    f"  {npy_path}"
+                )
+
+
+            out[sid] = {
+                "cube": arr,
+                "path": str(npy_path.resolve()),
+            }
+
+        return out
+
+    return loader
