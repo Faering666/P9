@@ -14,7 +14,7 @@ if [ ! -d "$IMG_DIR" ]; then
 fi
 
 # Compression levels
-qualities=(10 20 25 30 40 50 60 70 75 80 90)
+qualities=(10 20 25 30 40 50 60 70 75 80 90 100)
 
 IMG_DIR="$(realpath "$IMG_DIR")"
 
