@@ -27,14 +27,14 @@ for q in "${qualities[@]}"; do
     for img in "$IMG_DIR"/*.JPG; do
         [ -e "$img" ] || continue
         filename="$(basename "$img")"
-        magick "$img" -quality "$q" "$outdir/$filename"
+        convert "$img" -quality "$q" "$outdir/$filename"
         echo "Compressed JPG -> comp_${q}/$filename"
     done
 
     # Copy TIF files (no modification)
     for tif in "$IMG_DIR"/*.TIF; do
         [ -e "$tif" ] || continue
-        cp -n "$tif" "$outdir/"
+        cp "$tif" "$outdir/"
         echo "Copied TIF -> comp_${q}/$(basename "$tif")"
     done
 done
