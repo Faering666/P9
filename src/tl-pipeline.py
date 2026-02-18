@@ -1,18 +1,39 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 <Hugin J. Zachariasen, Magnus H. Jensen, Martin C. B. Nielsen, Tobias S. Madsen>.
 
+import logging
 from pathlib import Path
-from typing import Callable
+
+# Make dir for logs
+log_dir = Path("logs")
+log_dir.mkdir(parents=True, exist_ok=True)
+
+# Define logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(messages)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(log_dir/f"train_p9.log", mode="w"),
+    ]
+)
+logger = logging.getLogger(__name__)
+
+import os
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
+import torch.nn as nn
+
 import argparse
+from typing import Callable
+
+from utils import AverageMeter, Loss_MRAE, Loss_PSNR, Loss_RMSE
 from mstpp.model import MST_Plus_Plus
 from data_carrier import load_east_kaz, load_sri_lanka, load_weedy_rice, DataCarrier
-
-import os
-from utils import AverageMeter, Loss_MRAE, Loss_PSNR, Loss_RMSE
 
 
 class TransferLearning:
@@ -24,7 +45,7 @@ class TransferLearning:
             self.device = "mps"
         else:
             self.device = "cpu"
-        print(f"[Device] Using device: {self.device}")
+        logger.info(f"[Device] Using device: {self.device}")
 
         # Args
         self.stage1_data_path = Path(args.stage1_data_path)
@@ -62,7 +83,8 @@ class TransferLearning:
         self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
 
     def _load_pretrained(self, checkpoint_path, learning_rate):
-        self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3)
+        self.model = nn.DataParallel(self.model)
         self.model = self.model.to(self.device, memory_format=torch.channels_last)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
         if 'model' in checkpoint:
@@ -76,6 +98,9 @@ class TransferLearning:
 
         self.setup_optimizer(learning_rate)
         # self.setup_scheduler(...) # TODO consider to add a scheduler
+        # Must be set, does not matter now, unless we train stage 2/3
+        # Move optimizer also
+        
         model_state = self.model.state_dict()
         filtered = {}
         skipped = []
@@ -89,7 +114,7 @@ class TransferLearning:
                 if model_state[key].shape == v.shape:
                     filtered[key] = v
                 else:
-                    print(f"[Shape mismatch] {key}: model={model_state[key].shape}, pretrained={v.shape}")
+                    logger.info(f"[Shape mismatch] {key}: model={model_state[key].shape}, pretrained={v.shape}")
                     skipped.append(key)
             else:
                 skipped.append(key)
@@ -98,11 +123,11 @@ class TransferLearning:
         model_state.update(filtered)
         self.model.load_state_dict(model_state)
 
-        print(
+        logger.info(
             f"[Pretrained loading] Loaded {len(filtered)} params, skipped {len(skipped)} params (incompatible shapes).")
         if skipped:
-            print("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
-        print("DONE!")
+            logger.info("Skipped keys:", skipped[:10], "..." if len(skipped) > 10 else "")
+        logger.info("DONE!")
 
     def _get_loader_function(self, data_type: str) -> Callable[[Path], tuple[list[Path], list[Path]]]:
         match data_type:
@@ -113,11 +138,12 @@ class TransferLearning:
             case "Weedy-Rice":
                 return load_weedy_rice
             case _:
-                print("Unknown dataset type. Defaulting to Sri-Lanka patches.")
+                logger.info("Unknown dataset type. Defaulting to Sri-Lanka patches.")
                 breakpoint() #Dummefejl
 
     def load_mstpp(self, learning_rate, total_steps):
-        self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
+        self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3)
+        self.model = nn.DataParallel(self.model)
         self.model = self.model.to(self.device, memory_format=torch.channels_last)
 
         self.setup_optimizer(learning_rate)
@@ -146,7 +172,7 @@ class TransferLearning:
         }
 
         torch.save(checkpoint, full_path)
-        print(f"[Saved] Model saved to {full_path}")
+        logger.info(f"[Saved] Model saved to {full_path}")
         return full_path
 
     def freeze_all_except_decoder(self):
@@ -165,16 +191,16 @@ class TransferLearning:
         trainable_params = len(list(p.numel() for p in self.model.parameters() if p.requires_grad))
         total_params = len(list(p.numel() for p in self.model.parameters()))
 
-        print(f"[Freeze] Decoder only: {trainable_params}/{total_params} parameters trainable")
+        logger.info(f"[Freeze] Decoder only: {trainable_params}/{total_params} parameters trainable")
 
     def unfreeze_all(self):
         self.set_requires_grad(self.model, True)
         trainable_params = len(list(p.numel() for p in self.model.parameters() if p.requires_grad))
-        print(f"[Unfreeze] All layers: {trainable_params} parameters trainable")
+        logger.info(f"[Unfreeze] All layers: {trainable_params} parameters trainable")
 
     def setup_optimizer(self, learning_rate):
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=learning_rate, betas=(0.9, 0.999))
-        print(f"[Optimizer] Adam optimizer set with lr={learning_rate}")
+        logger.info(f"[Optimizer] Adam optimizer set with lr={learning_rate}")
 
     def setup_scheduler(self, total_steps, eta_min):
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -182,7 +208,7 @@ class TransferLearning:
             T_max=total_steps,
             eta_min=eta_min
         )
-        print(f"[Scheduler] CosineAnnealinLR schedular set with eta_min={eta_min}")
+        logger.info(f"[Scheduler] CosineAnnealinLR schedular set with eta_min={eta_min}")
 
     def setup_criterion(self):
         self.criterion_mrae = Loss_MRAE()
@@ -231,7 +257,7 @@ class TransferLearning:
                 self.scheduler.step()
 
             if (batch_idx) % 10 == 0:
-                 print(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
+                 logger.info(f"  Batch {batch_idx + 1}/{len(dataloader)}, Loss: {loss.item():.6f}")
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss
@@ -261,12 +287,12 @@ class TransferLearning:
 
     def load_dataset(self, root_dir: Path, loader: Callable[[Path], tuple[list[Path], list[Path]]], non_resize_picture=False):
         self.dataset = DataCarrier(root_dir, loader, resize=(not non_resize_picture)) # non_resize_picture is default False
-        print(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
+        logger.info(f"[Loaded] Dataset loaded with {len(self.dataset)} samples.")
 
     def train_from_scratch(self, train_dataloader, epochs, val_dataloader=None, save_dir="checkpoints", save_every=10):
-        print("\n" + "="*60)
-        print("STAGE 1: Train from scratch")
-        print("="*60)
+        logger.info("="*60)
+        logger.info("STAGE 1: Train from scratch")
+        logger.info("="*60)
 
         # Set model mode train
         self.model.train(mode=True)
@@ -280,15 +306,15 @@ class TransferLearning:
 
         # Training loop
         for epoch in range(epochs):
-            print(f"\n[Stage 1] Epoch {epoch + 1}/{epochs}")
+            logger.info(f"[Stage 1] Epoch {epoch + 1}/{epochs}")
             train_loss = self.train_epoch(train_dataloader)
-            print(f"[Stage 1] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
-            print(f"[Stage 1] Scheduler LR: {self.scheduler.get_last_lr()}")
+            logger.info(f"[Stage 1] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
+            logger.info(f"[Stage 1] Scheduler LR: {self.scheduler.get_last_lr()}")
 
             # Validation
             if val_dataloader is not None:
                 mrae_loss, rmse_loss, psnr_loss = self.validate_epoch(val_dataloader)
-                print(f"[Stage 1] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
+                logger.info(f"[Stage 1] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
 
                 # Log to tensorboard
                 self.logWriter.add_scalar("Stage1/Train_Loss", train_loss, epoch)
@@ -300,10 +326,10 @@ class TransferLearning:
                 if mrae_loss < best_val_loss:
                     best_val_loss = mrae_loss
                     best_model_path = self.save_model(save_dir, "stage1_best")
-                    print(f"[Stage 1] New best model saved! Val Loss: {mrae_loss:.6f}")
+                    logger.info(f"[Stage 1] New best model saved! Val Loss: {mrae_loss:.6f}")
             else:
                 # Log to tensorboard (training only)
-                print("[Stage 1] There is no validate dataloader")
+                logger.info("[Stage 1] There is no validate dataloader")
                 self.logWriter.add_scalar("Stage1/Train_Loss", train_loss, epoch)
 
             # Save checkpoint periodically
@@ -314,18 +340,18 @@ class TransferLearning:
         final_path = self.save_model(save_dir, "stage1")
 
         if val_dataloader is not None:
-            print(f"\n[Stage 1] Training completed. Best MRAE Loss: {best_val_loss:.6f}")
-            print(f"[Stage 1] Best model: {best_model_path}")
+            logger.info(f"[Stage 1] Training completed. Best MRAE Loss: {best_val_loss:.6f}")
+            logger.info(f"[Stage 1] Best model: {best_model_path}")
         else:
-            print(f"\n[Stage 1] Training completed. (No validate dataloader)")
-        print(f"[Stage 1] Final model: {final_path}")
+            logger.info(f"[Stage 1] Training completed. (No validate dataloader)")
+        logger.info(f"[Stage 1] Final model: {final_path}")
 
         return best_model_path if best_model_path else final_path 
 
     def run_stage_2(self, train_dataloader, epochs, val_dataloader=None, save_dir="checkpoints", save_every=10):
-        print("\n" + "="*60)
-        print("STAGE 2: Decoder Training (Frozen Encoder)")
-        print("="*60)
+        logger.info("="*60)
+        logger.info("STAGE 2: Decoder Training (Frozen Encoder)")
+        logger.info("="*60)
 
         # Set model mode train
         self.model.train(mode=True)
@@ -340,14 +366,14 @@ class TransferLearning:
 
         # Training loop
         for epoch in range(epochs):
-            print(f"\n[Stage 2] Epoch {epoch + 1}/{epochs}")
+            logger.info(f"[Stage 2] Epoch {epoch + 1}/{epochs}")
             train_loss = self.train_epoch(train_dataloader)
-            print(f"[Stage 2] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
+            logger.info(f"[Stage 2] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
 
             # Validation
             if val_dataloader is not None:
                 mrae_loss, rmse_loss, psnr_loss = self.validate_epoch(val_dataloader)
-                print(f"[Stage 2] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
+                logger.info(f"[Stage 2] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
 
                 # Log to tensorboard
                 self.logWriter.add_scalar("Stage2/Train_Loss", train_loss, epoch)
@@ -359,10 +385,10 @@ class TransferLearning:
                 if mrae_loss < best_val_loss:
                     best_val_loss = mrae_loss
                     best_model_path = self.save_model(save_dir, "stage2_best")
-                    print(f"[Stage 2] New best model saved! MRAE Loss: {mrae_loss:.6f}")
+                    logger.info(f"[Stage 2] New best model saved! MRAE Loss: {mrae_loss:.6f}")
             else:
                 # Log to tensorboard (training only)
-                print("[Stage 2] There is no validate dataloader")
+                logger.info("[Stage 2] There is no validate dataloader")
                 self.logWriter.add_scalar("Stage2/Train_Loss", train_loss, epoch)
 
             # Save checkpoint periodically
@@ -373,18 +399,18 @@ class TransferLearning:
         final_path = self.save_model(save_dir, "stage2")
 
         if val_dataloader is not None:
-            print(f"\n[Stage 2] Training completed. Best Val Loss: {best_val_loss:.6f}")
-            print(f"[Stage 2] Best model: {best_model_path}")
+            logger.info(f"[Stage 2] Training completed. Best Val Loss: {best_val_loss:.6f}")
+            logger.info(f"[Stage 2] Best model: {best_model_path}")
         else:
-            print(f"\n[Stage 2] Training completed. (No validate dataloader)")
-        print(f"[Stage 2] Final model: {final_path}")
+            logger.info(f"[Stage 2] Training completed. (No validate dataloader)")
+        logger.info(f"[Stage 2] Final model: {final_path}")
 
         return best_model_path if best_model_path else final_path
 
     def run_stage_3(self, train_dataloader, epochs, val_dataloader=None, save_dir="checkpoints", save_every=10):
-        print("\n" + "="*60)
-        print("STAGE 3: Full Model Fine-tuning (All Layers Unfrozen)")
-        print("="*60)
+        logger.info("="*60)
+        logger.info("STAGE 3: Full Model Fine-tuning (All Layers Unfrozen)")
+        logger.info("="*60)
 
         # Set model mode train
         self.model.train(mode=True)
@@ -398,14 +424,14 @@ class TransferLearning:
 
         # Training loop
         for epoch in range(epochs):
-            print(f"\n[Stage 3] Epoch {epoch + 1}/{epochs}")
+            logger.info(f"[Stage 3] Epoch {epoch + 1}/{epochs}")
             train_loss = self.train_epoch(train_dataloader)
-            print(f"[Stage 3] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
+            logger.info(f"[Stage 3] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
 
             # Validation
             if val_dataloader is not None:
                 mrae_loss, rmse_loss, psnr_loss = self.validate_epoch(val_dataloader)
-                print(f"[Stage 3] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
+                logger.info(f"[Stage 3] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
 
                 # Log to tensorboard
                 self.logWriter.add_scalar("Stage3/Train_Loss", train_loss, epoch)
@@ -417,10 +443,10 @@ class TransferLearning:
                 if mrae_loss < best_val_loss:
                     best_val_loss = mrae_loss
                     best_model_path = self.save_model(save_dir, "stage3_best")
-                    print(f"[Stage 3] New best model saved! Val Loss: {mrae_loss:.6f}")
+                    logger.info(f"[Stage 3] New best model saved! Val Loss: {mrae_loss:.6f}")
             else:
                 # Log to tensorboard (training only)
-                print("[Stage 3] There is no validate dataloader")
+                logger.info("[Stage 3] There is no validate dataloader")
                 self.logWriter.add_scalar("Stage3/Train_Loss", train_loss, epoch)
 
             # Save checkpoint periodically
@@ -431,11 +457,11 @@ class TransferLearning:
         final_path = self.save_model(save_dir, "stage3")
 
         if val_dataloader is not None:
-            print(f"\n[Stage 3] Training completed. Best Val Loss: {best_val_loss:.6f}")
-            print(f"[Stage 3] Best model: {best_model_path}")
+            logger.info(f"[Stage 3] Training completed. Best Val Loss: {best_val_loss:.6f}")
+            logger.info(f"[Stage 3] Best model: {best_model_path}")
         else:
-            print(f"\n[Stage 3] Training completed. (No validate dataloader)")
-        print(f"[Stage 3] Final model: {final_path}")
+            logger.info(f"[Stage 3] Training completed. (No validate dataloader)")
+        logger.info(f"[Stage 3] Final model: {final_path}")
 
         return best_model_path if best_model_path else final_path
 
@@ -447,9 +473,9 @@ class TransferLearning:
                           stage3_epochs=100,
                           stage3_lr=1e-7,
                           save_dir="checkpoints"):
-        print("\n" + "="*70)
-        print(" STAGED TRANSFER LEARNING PIPELINE")
-        print("="*70)
+        logger.info("="*70)
+        logger.info(" STAGED TRANSFER LEARNING PIPELINE")
+        logger.info("="*70)
 
         results = {}
 
@@ -531,12 +557,12 @@ class TransferLearning:
             save_dir=save_dir
         )
 
-        print("\n" + "="*70)
-        print(" PIPELINE COMPLETED")
-        print("="*70)
-        print("\nSaved models:")
+        logger.info("="*70)
+        logger.info(" PIPELINE COMPLETED")
+        logger.info("="*70)
+        logger.info("Saved models:")
         for stage, path in results.items():
-            print(f"  {stage}: {path}")
+            logger.info(f"  {stage}: {path}")
 
         return results
 
@@ -545,10 +571,10 @@ class TransferLearning:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get data paths.")
-    parser.add_argument("--stage1_data_path", default="data/")
+    parser.add_argument("--stage1_data_path", default="data/East-Kaza")
     parser.add_argument("--stage1_data_type", help="Which dataset", default="Kazakhstan")
     parser.add_argument("--stage1_non_resize", type=bool, help="Use non-resized pictures, default=False", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--stage1_epochs", type=int, help="Number of epochs for stage 1 (train from scratch). To skip set epochs to '0'", default=0)
+    parser.add_argument("--stage1_epochs", type=int, help="Number of epochs for stage 1 (train from scratch). To skip set epochs to '0'", default=300)
     parser.add_argument("--stage1_lr", type=float, help="Learning rate for stage 1 (train from scratch)", default=4e-4)
     
     parser.add_argument("--stage2_data_path", default="data/")
