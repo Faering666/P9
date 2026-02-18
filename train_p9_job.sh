@@ -8,6 +8,7 @@
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
 
+mkdir -p logs
 hostname
 
 singularity exec --nv \
