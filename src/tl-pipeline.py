@@ -10,22 +10,29 @@ from torch.utils.tensorboard import SummaryWriter
 import argparse
 from mstpp.model import MST_Plus_Plus
 from data_carrier import load_east_kaz, load_sri_lanka, load_weedy_rice, DataCarrier
-
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
 import os
 from utils import AverageMeter, Loss_MRAE, Loss_PSNR, Loss_RMSE
 
 
 class TransferLearning:
     def __init__(self, args):
-        # Use CUDA, MPS (Mac GPU), or CPU in that order
-        if torch.cuda.is_available():
-            self.device = "cuda"
-        elif torch.backends.mps.is_available():
-            self.device = "mps"
+        # 1. Setup Distributed Environment
+        self.local_rank = int(os.environ.get("LOCAL_RANK", -1))
+        
+        if self.local_rank != -1:
+            dist.init_process_group(backend="nccl")
+            torch.cuda.set_device(self.local_rank)
+            self.device = torch.device(f"cuda:{self.local_rank}")
+            self.is_distributed = True
+            self.is_master = (self.local_rank == 0) # Only Rank 0 logs/saves
         else:
-            self.device = "cpu"
-        print(f"[Device] Using device: {self.device}")
-
+            # Fallback for single GPU/CPU debugging
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.is_distributed = False
+            self.is_master = True
+        
         # Args
         self.stage1_data_path = Path(args.stage1_data_path)
         self.stage1_data_type = args.stage1_data_type
@@ -59,7 +66,11 @@ class TransferLearning:
         self.criterion_psnr: Loss_PSNR = None
         
         # Logging
-        self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
+        if self.is_master:
+            self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
+        else:
+            self.logWriter = None
+
 
     def _load_pretrained(self, checkpoint_path, learning_rate):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3).to(self.device)
@@ -123,6 +134,10 @@ class TransferLearning:
         self.setup_optimizer(learning_rate)
         self.setup_scheduler(total_steps, eta_min=1e-6)
 
+        if self.is_distributed:
+            # Wrap the model
+            self.model = DDP(self.model, device_ids=[self.local_rank])
+
     def set_requires_grad(self, module, requires_grad: bool):
         """Recursively set requires_grad for all parameters in a module."""
         for p in module.parameters():
@@ -139,7 +154,7 @@ class TransferLearning:
         full_path = os.path.join(save_path, filename)
 
         checkpoint = {
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': self.model.module.state_dict() if self.is_distributed else self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict() if self.optimizer else None,
             'stage': stage_name,
             'epoch': epoch
@@ -280,6 +295,8 @@ class TransferLearning:
 
         # Training loop
         for epoch in range(epochs):
+            if self.is_distributed:
+                train_dataloader.sampler.set_epoch(epoch)
             print(f"\n[Stage 1] Epoch {epoch + 1}/{epochs}")
             train_loss = self.train_epoch(train_dataloader)
             print(f"[Stage 1] Epoch {epoch + 1} - Train Loss: {train_loss:.6f}")
@@ -291,15 +308,17 @@ class TransferLearning:
                 print(f"[Stage 1] Epoch {epoch + 1} - MRAE loss: {mrae_loss:.6f}, RMSE loss: {rmse_loss}, PSNR: {psnr_loss}")
 
                 # Log to tensorboard
-                self.logWriter.add_scalar("Stage1/Train_Loss", train_loss, epoch)
-                self.logWriter.add_scalar("Stage1/MRAE_Loss", mrae_loss, epoch)
-                self.logWriter.add_scalar("Stage1/RMSE_Loss", rmse_loss, epoch)
-                self.logWriter.add_scalar("Stage1/PSNR_Loss", psnr_loss, epoch)
+                if self.is_master:
+                    self.logWriter.add_scalar("Stage1/Train_Loss", train_loss, epoch)
+                    self.logWriter.add_scalar("Stage1/MRAE_Loss", mrae_loss, epoch)
+                    self.logWriter.add_scalar("Stage1/RMSE_Loss", rmse_loss, epoch)
+                    self.logWriter.add_scalar("Stage1/PSNR_Loss", psnr_loss, epoch)
 
                 # Save best model when validation loss improves
                 if mrae_loss < best_val_loss:
                     best_val_loss = mrae_loss
-                    best_model_path = self.save_model(save_dir, "stage1_best")
+                    if not self.is_master:
+                        best_model_path = self.save_model(save_dir, "stage1_best")
                     print(f"[Stage 1] New best model saved! Val Loss: {mrae_loss:.6f}")
             else:
                 # Log to tensorboard (training only)
@@ -308,10 +327,13 @@ class TransferLearning:
 
             # Save checkpoint periodically
             if (epoch + 1) % save_every == 0:
+                if not self.is_master:
+                    return
                 self.save_model(save_dir, "stage1", epoch + 1)
 
         # Save final model
-        final_path = self.save_model(save_dir, "stage1")
+        if not self.is_master:
+            final_path = self.save_model(save_dir, "stage1")
 
         if val_dataloader is not None:
             print(f"\n[Stage 1] Training completed. Best MRAE Loss: {best_val_loss:.6f}")
@@ -521,7 +543,20 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
+        if self.is_distributed:
+            sampler = DistributedSampler(train_dataset, shuffle=True)
+            shuffle = False # Sampler handles shuffling
+        else:
+            sampler = None
+            shuffle = True
+
+        train_dataloader = DataLoader(
+            dataset=train_dataset,
+            batch_size=12, # Note: This is now "Batch Size Per GPU"
+            shuffle=shuffle,
+            sampler=sampler,
+            pin_memory=True
+        )
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
 
         results['stage3'] = self.run_stage_3(
