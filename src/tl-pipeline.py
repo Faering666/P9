@@ -11,7 +11,7 @@ log_dir.mkdir(parents=True, exist_ok=True)
 # Define logger
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(messages)s",
+    format="%(asctime)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler(log_dir/f"train_p9.log", mode="w"),
@@ -48,6 +48,8 @@ class TransferLearning:
         logger.info(f"[Device] Using device: {self.device}")
 
         # Args
+        self.cluster: bool = args.cluster
+        
         self.stage1_data_path = Path(args.stage1_data_path)
         self.stage1_data_type = args.stage1_data_type
         self.stage1_non_resize_picture = args.stage1_non_resize
@@ -82,9 +84,17 @@ class TransferLearning:
         # Logging
         self.logWriter = SummaryWriter(log_dir="logs/transfer_learning/")
 
+        # DataLoader args dependent on if on cluster or not
+        self.loader_kwargs = dict(
+            num_workers = 15 if self.cluster else 1,
+            pin_memory = True,
+            persistent_workers = True,
+            prefetch = 4 if self.cluster else 2
+        )
+
     def _load_pretrained(self, checkpoint_path, learning_rate):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3)
-        self.model = nn.DataParallel(self.model)
+        # self.model = nn.DataParallel(self.model)
         self.model = self.model.to(self.device, memory_format=torch.channels_last)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
         if 'model' in checkpoint:
@@ -143,7 +153,7 @@ class TransferLearning:
 
     def load_mstpp(self, learning_rate, total_steps):
         self.model = MST_Plus_Plus(in_channels=3, out_channels=4, n_feat=4, stage=3)
-        self.model = nn.DataParallel(self.model)
+        # self.model = nn.DataParallel(self.model)
         self.model = self.model.to(self.device, memory_format=torch.channels_last)
 
         self.setup_optimizer(learning_rate)
@@ -232,9 +242,12 @@ class TransferLearning:
         self.optimizer.zero_grad()
 
         for batch_idx, batch in enumerate(dataloader):
-            torch.cuda.empty_cache()
-            inputs = batch["rgb"].to(self.device)
-            targets = batch["ms"].to(self.device)
+            # Empty cache if on desktop
+            if not self.cluster:
+                torch.cuda.empty_cache()
+                
+            inputs = batch["rgb"].to(self.device, non_blocking=True)
+            targets = batch["ms"].to(self.device, non_blocking=True)
 
             # Forward pass
             self.optimizer.zero_grad()
@@ -494,8 +507,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True, **self.loader_kwargs)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False, **self.loader_kwargs)
 
         results['stage1'] = self.train_from_scratch(
             train_dataloader=train_dataloader,
@@ -520,8 +533,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True, **self.loader_kwargs)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False, **self.loader_kwargs)
 
         results['stage2'] = self.run_stage_2(
             train_dataloader=train_dataloader,
@@ -547,8 +560,8 @@ class TransferLearning:
         train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
 
         # Prepare your dataloaders
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=12, shuffle=True, **self.loader_kwargs)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=4, shuffle=False, **self.loader_kwargs)
 
         results['stage3'] = self.run_stage_3(
             train_dataloader=train_dataloader,
@@ -571,6 +584,8 @@ class TransferLearning:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get data paths.")
+    parser.add_argument("--cluster", type=bool, help="Script intended for cluster, default=False", action=argparse.BooleanOptionalAction)
+
     parser.add_argument("--stage1_data_path", default="data/East-Kaza")
     parser.add_argument("--stage1_data_type", help="Which dataset", default="Kazakhstan")
     parser.add_argument("--stage1_non_resize", type=bool, help="Use non-resized pictures, default=False", action=argparse.BooleanOptionalAction)
